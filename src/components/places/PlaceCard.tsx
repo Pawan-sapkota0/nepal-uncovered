@@ -4,14 +4,16 @@ import type { Place } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/store/useApp";
 import { cn } from "@/lib/utils";
+import { Highlight } from "@/components/Highlight";
 
 interface PlaceCardProps {
   place: Place;
   index?: number;
   variant?: "default" | "compact" | "feature";
+  highlight?: string;
 }
 
-export function PlaceCard({ place, index = 0, variant = "default" }: PlaceCardProps) {
+export function PlaceCard({ place, index = 0, variant = "default", highlight }: PlaceCardProps) {
   const { bookmarks, toggleBookmark } = useApp();
   const saved = bookmarks.includes(place.id);
 
