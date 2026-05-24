@@ -349,7 +349,7 @@ const Explore = () => {
             </div>
           ) : view === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filtered.map((p, i) => <PlaceCard key={p.id} place={p} index={i} />)}
+              {filtered.map((p, i) => <PlaceCard key={p.id} place={p} index={i} highlight={debouncedQuery} />)}
             </div>
           ) : (
             <div className="space-y-4">
