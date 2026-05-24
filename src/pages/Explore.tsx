@@ -126,8 +126,22 @@ const Explore = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search places, districts, keywords…"
-              className="h-12 pl-12 bg-background border-border shadow-soft"
+              className="h-12 pl-12 pr-10 bg-background border-border shadow-soft"
             />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {query !== debouncedQuery && (
+              <span className="absolute -bottom-5 left-1 text-xs text-muted-foreground animate-pulse">
+                Searching…
+              </span>
+            )}
           </div>
         </div>
       </div>
