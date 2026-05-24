@@ -111,10 +111,12 @@ const PlaceDetail = () => {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild variant="hero" size="lg">
-              <a href={directionsUrl} target="_blank" rel="noreferrer">
-                Get directions <ExternalLink className="h-4 w-4" />
-              </a>
+            <Button variant="hero" size="lg" onClick={openDirections} disabled={locating}>
+              {locating ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Locating you…</>
+              ) : (
+                <><Navigation className="h-4 w-4" /> Get directions</>
+              )}
             </Button>
             <Button
               variant="outline"
