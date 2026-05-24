@@ -28,6 +28,11 @@ interface AppState {
   deletePlace: (placeId: string) => void;
   toggleFeatured: (placeId: string) => void;
   setUserRole: (userId: string, role: UserRole) => void;
+
+  // Filter presets
+  filterPresets: FilterPreset[];
+  savePreset: (preset: Omit<FilterPreset, "id" | "createdAt">) => void;
+  deletePreset: (id: string) => void;
 }
 
 export const useApp = create<AppState>()(
