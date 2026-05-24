@@ -107,63 +107,6 @@ const Explore = () => {
     setHiddenOnly(p.filters.hiddenOnly);
   };
 
-
-const Explore = () => {
-  const { places } = useApp();
-  const [params, setParams] = useSearchParams();
-
-  const [query, setQuery] = useState(params.get("q") ?? "");
-  const [category, setCategory] = useState(params.get("category") ?? "all");
-  const [province, setProvince] = useState(params.get("province") ?? "all");
-  const [district, setDistrict] = useState("all");
-  const [difficulty, setDifficulty] = useState("all");
-  const [hiddenOnly, setHiddenOnly] = useState(params.get("hidden") === "true");
-  const [sort, setSort] = useState<Sort>("popular");
-  const [view, setView] = useState<View>("grid");
-
-  useEffect(() => {
-    const next = new URLSearchParams();
-    if (query) next.set("q", query);
-    if (category !== "all") next.set("category", category);
-    if (province !== "all") next.set("province", province);
-    if (hiddenOnly) next.set("hidden", "true");
-    setParams(next, { replace: true });
-  }, [query, category, province, hiddenOnly, setParams]);
-
-  const filtered = useMemo(() => {
-    let list = places.filter((p) => p.status === "approved");
-    if (query) {
-      const q = query.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.district.toLowerCase().includes(q) ||
-          p.shortDescription.toLowerCase().includes(q) ||
-          p.category.includes(q)
-      );
-    }
-    if (category !== "all") list = list.filter((p) => p.category === category);
-    if (province !== "all") list = list.filter((p) => p.province === province);
-    if (district !== "all") list = list.filter((p) => p.district === district);
-    if (difficulty !== "all") list = list.filter((p) => p.travel.difficulty === difficulty);
-    if (hiddenOnly) list = list.filter((p) => p.hidden);
-
-    if (sort === "popular") list.sort((a, b) => b.views - a.views);
-    if (sort === "newest") list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-    if (sort === "name") list.sort((a, b) => a.title.localeCompare(b.title));
-    return list;
-  }, [places, query, category, province, district, difficulty, hiddenOnly, sort]);
-
-  const reset = () => {
-    setQuery(""); setCategory("all"); setProvince("all"); setDistrict("all");
-    setDifficulty("all"); setHiddenOnly(false);
-  };
-
-  const activeCount = [
-    query, category !== "all" && category, province !== "all" && province,
-    district !== "all" && district, difficulty !== "all" && difficulty, hiddenOnly && "hidden",
-  ].filter(Boolean).length;
-
   return (
     <div className="pt-24 pb-20">
       {/* Header */}
