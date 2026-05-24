@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Place, Submission, User, UserRole } from "@/types";
+import type { FilterPreset, Place, Submission, User, UserRole } from "@/types";
 import { places as seedPlaces, submissions as seedSubmissions, users as seedUsers } from "@/data/mock";
 
 interface AppState {
