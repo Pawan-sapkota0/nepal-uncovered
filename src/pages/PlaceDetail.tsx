@@ -181,10 +181,13 @@ const PlaceDetail = () => {
               />
             </div>
             <div className="mt-3 text-sm text-muted-foreground flex items-center justify-between flex-wrap gap-2">
-              <span>Coordinates: {place.coordinates[0].toFixed(4)}°, {place.coordinates[1].toFixed(4)}°</span>
-              <a href={directionsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                Open in Google Maps <ExternalLink className="h-3 w-3" />
-              </a>
+              <span>Coordinates: {lat.toFixed(5)}°, {lng.toFixed(5)}°</span>
+              <button
+                onClick={openDirections}
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                <Navigation className="h-3 w-3" /> Route from my location
+              </button>
             </div>
           </section>
 
