@@ -33,8 +33,44 @@ const PlaceDetail = () => {
     .filter((p) => p.status === "approved" && p.id !== place.id && (p.category === place.category || p.province === place.province))
     .slice(0, 3);
 
-  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${place.coordinates[1] - 0.5},${place.coordinates[0] - 0.3},${place.coordinates[1] + 0.5},${place.coordinates[0] + 0.3}&marker=${place.coordinates[0]},${place.coordinates[1]}&layer=mapnik`;
-  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.coordinates[0]},${place.coordinates[1]}`;
+  const [lat, lng] = place.coordinates;
+  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.3},${lng + 0.5},${lat + 0.3}&marker=${lat},${lng}&layer=mapnik`;
+  const fallbackDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+
+  const [locating, setLocating] = useState(false);
+
+  const openDirections = () => {
+    const dest = `${lat},${lng}`;
+    if (!("geolocation" in navigator)) {
+      window.open(fallbackDirectionsUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+        window.open(url, "_blank", "noopener,noreferrer");
+        toast({
+          title: "Route ready",
+          description: `Directions from your location to ${place.title}.`,
+        });
+      },
+      (err) => {
+        setLocating(false);
+        toast({
+          title: "Using destination only",
+          description:
+            err.code === err.PERMISSION_DENIED
+              ? "Location access was denied — opening map without an origin."
+              : "Couldn't read your location — opening map without an origin.",
+        });
+        window.open(fallbackDirectionsUrl, "_blank", "noopener,noreferrer");
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+    );
+  };
 
   return (
     <article>
