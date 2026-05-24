@@ -369,8 +369,12 @@ const Explore = () => {
                       <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{p.views.toLocaleString()}</span>
                       {p.hidden && <Badge className="bg-saffron text-saffron-foreground border-0 gap-1"><Sparkles className="h-3 w-3" />Hidden gem</Badge>}
                     </div>
-                    <h3 className="font-display text-xl font-semibold group-hover:text-primary transition-colors">{p.title}</h3>
-                    <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">{p.shortDescription}</p>
+                    <h3 className="font-display text-xl font-semibold group-hover:text-primary transition-colors">
+                      <Highlight text={p.title} query={debouncedQuery} />
+                    </h3>
+                    <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
+                      <Highlight text={p.shortDescription} query={debouncedQuery} />
+                    </p>
                     <div className="mt-3 flex items-center gap-2">
                       <Badge variant="secondary" className="capitalize text-xs">{p.category}</Badge>
                       <Badge variant="outline" className="text-xs">{p.travel.difficulty}</Badge>
