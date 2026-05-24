@@ -43,10 +43,10 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
             {place.district} · {place.province}
           </div>
           <h3 className="font-display text-2xl md:text-3xl font-semibold leading-tight">
-            {place.title}
+            <Highlight text={place.title} query={highlight} />
           </h3>
           <p className="mt-2 text-sm text-primary-foreground/85 line-clamp-2 max-w-md">
-            {place.shortDescription}
+            <Highlight text={place.shortDescription} query={highlight} />
           </p>
         </div>
       </Link>
