@@ -232,6 +232,79 @@ const Explore = () => {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Saved presets */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                Saved presets
+              </label>
+              <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={activeCount === 0}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <Save className="h-3.5 w-3.5" /> Save
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Save current filters</DialogTitle>
+                  </DialogHeader>
+                  <Input
+                    autoFocus
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="e.g. Hidden Himalayan lakes"
+                    onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {activeCount} active filter{activeCount === 1 ? "" : "s"} will be stored.
+                  </p>
+                  <DialogFooter>
+                    <Button variant="ghost" onClick={() => setPresetDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSavePreset} disabled={!presetName.trim()}>
+                      Save preset
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+            {filterPresets.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">
+                Tweak filters and save them for one-tap recall.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {filterPresets.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="group flex items-center gap-1 rounded-md border border-border bg-background hover:border-primary/50 transition"
+                  >
+                    <button
+                      onClick={() => applyPreset(preset.id)}
+                      className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-sm"
+                    >
+                      <Bookmark className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="truncate">{preset.name}</span>
+                    </button>
+                    <button
+                      onClick={() => deletePreset(preset.id)}
+                      className="shrink-0 h-7 w-7 grid place-items-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+                      aria-label={`Delete preset ${preset.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* Results */}
