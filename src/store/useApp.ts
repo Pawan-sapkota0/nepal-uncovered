@@ -139,6 +139,21 @@ export const useApp = create<AppState>()(
           currentUser:
             get().currentUser?.id === userId ? { ...get().currentUser!, role } : get().currentUser,
         }),
+
+      filterPresets: [],
+      savePreset: (preset) =>
+        set({
+          filterPresets: [
+            {
+              ...preset,
+              id: `fp${Date.now()}`,
+              createdAt: new Date().toISOString(),
+            },
+            ...get().filterPresets,
+          ],
+        }),
+      deletePreset: (id) =>
+        set({ filterPresets: get().filterPresets.filter((p) => p.id !== id) }),
     }),
     {
       name: "hidden-nepal-store",
@@ -149,6 +164,7 @@ export const useApp = create<AppState>()(
         places: s.places,
         submissions: s.submissions,
         users: s.users,
+        filterPresets: s.filterPresets,
       }),
     }
   )
