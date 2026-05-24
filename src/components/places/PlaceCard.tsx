@@ -98,10 +98,10 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
           </span>
         </div>
         <h3 className="font-display text-xl font-semibold leading-snug group-hover:text-primary transition-colors">
-          {place.title}
+          <Highlight text={place.title} query={highlight} />
         </h3>
         <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-          {place.shortDescription}
+          <Highlight text={place.shortDescription} query={highlight} />
         </p>
         <div className="mt-4 flex items-center justify-between">
           <Badge variant="secondary" className="capitalize text-xs">{place.category}</Badge>
