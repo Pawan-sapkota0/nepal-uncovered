@@ -1,19 +1,112 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { LayoutGrid, List, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Bookmark, LayoutGrid, List, Save, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PlaceCard } from "@/components/places/PlaceCard";
+import { Highlight } from "@/components/Highlight";
 import { useApp } from "@/store/useApp";
 import { categories, districts, provinces } from "@/data/mock";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { MapPin, Eye } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 type Sort = "popular" | "newest" | "name";
 type View = "grid" | "list";
+
+const Explore = () => {
+  const { places, filterPresets, savePreset, deletePreset } = useApp();
+  const [params, setParams] = useSearchParams();
+
+  const [query, setQuery] = useState(params.get("q") ?? "");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const [category, setCategory] = useState(params.get("category") ?? "all");
+  const [province, setProvince] = useState(params.get("province") ?? "all");
+  const [district, setDistrict] = useState("all");
+  const [difficulty, setDifficulty] = useState("all");
+  const [hiddenOnly, setHiddenOnly] = useState(params.get("hidden") === "true");
+  const [sort, setSort] = useState<Sort>("popular");
+  const [view, setView] = useState<View>("grid");
+  const [presetName, setPresetName] = useState("");
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+
+  // Debounce keyword search (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (debouncedQuery) next.set("q", debouncedQuery);
+    if (category !== "all") next.set("category", category);
+    if (province !== "all") next.set("province", province);
+    if (hiddenOnly) next.set("hidden", "true");
+    setParams(next, { replace: true });
+  }, [debouncedQuery, category, province, hiddenOnly, setParams]);
+
+  const filtered = useMemo(() => {
+    let list = places.filter((p) => p.status === "approved");
+    if (debouncedQuery) {
+      const q = debouncedQuery.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.district.toLowerCase().includes(q) ||
+          p.shortDescription.toLowerCase().includes(q) ||
+          p.category.includes(q)
+      );
+    }
+    if (category !== "all") list = list.filter((p) => p.category === category);
+    if (province !== "all") list = list.filter((p) => p.province === province);
+    if (district !== "all") list = list.filter((p) => p.district === district);
+    if (difficulty !== "all") list = list.filter((p) => p.travel.difficulty === difficulty);
+    if (hiddenOnly) list = list.filter((p) => p.hidden);
+
+    if (sort === "popular") list.sort((a, b) => b.views - a.views);
+    if (sort === "newest") list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    if (sort === "name") list.sort((a, b) => a.title.localeCompare(b.title));
+    return list;
+  }, [places, debouncedQuery, category, province, district, difficulty, hiddenOnly, sort]);
+
+  const reset = () => {
+    setQuery(""); setCategory("all"); setProvince("all"); setDistrict("all");
+    setDifficulty("all"); setHiddenOnly(false);
+  };
+
+  const activeCount = [
+    debouncedQuery, category !== "all" && category, province !== "all" && province,
+    district !== "all" && district, difficulty !== "all" && difficulty, hiddenOnly && "hidden",
+  ].filter(Boolean).length;
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) return;
+    savePreset({
+      name,
+      filters: { query: debouncedQuery, category, province, district, difficulty, hiddenOnly },
+    });
+    setPresetName("");
+    setPresetDialogOpen(false);
+    toast({ title: "Preset saved", description: `"${name}" is ready to apply anytime.` });
+  };
+
+  const applyPreset = (id: string) => {
+    const p = filterPresets.find((fp) => fp.id === id);
+    if (!p) return;
+    setQuery(p.filters.query);
+    setDebouncedQuery(p.filters.query);
+    setCategory(p.filters.category);
+    setProvince(p.filters.province);
+    setDistrict(p.filters.district);
+    setDifficulty(p.filters.difficulty);
+    setHiddenOnly(p.filters.hiddenOnly);
+  };
+
 
 const Explore = () => {
   const { places } = useApp();
