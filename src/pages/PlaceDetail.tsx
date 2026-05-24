@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import {
   ArrowLeft, Bookmark, MapPin, CalendarDays, DollarSign, Mountain, FileCheck,
-  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, ExternalLink,
+  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, ExternalLink, Navigation, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 const PlaceDetail = () => {
   const { slug } = useParams();
@@ -32,8 +33,44 @@ const PlaceDetail = () => {
     .filter((p) => p.status === "approved" && p.id !== place.id && (p.category === place.category || p.province === place.province))
     .slice(0, 3);
 
-  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${place.coordinates[1] - 0.5},${place.coordinates[0] - 0.3},${place.coordinates[1] + 0.5},${place.coordinates[0] + 0.3}&marker=${place.coordinates[0]},${place.coordinates[1]}&layer=mapnik`;
-  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.coordinates[0]},${place.coordinates[1]}`;
+  const [lat, lng] = place.coordinates;
+  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.3},${lng + 0.5},${lat + 0.3}&marker=${lat},${lng}&layer=mapnik`;
+  const fallbackDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+
+  const [locating, setLocating] = useState(false);
+
+  const openDirections = () => {
+    const dest = `${lat},${lng}`;
+    if (!("geolocation" in navigator)) {
+      window.open(fallbackDirectionsUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+        window.open(url, "_blank", "noopener,noreferrer");
+        toast({
+          title: "Route ready",
+          description: `Directions from your location to ${place.title}.`,
+        });
+      },
+      (err) => {
+        setLocating(false);
+        toast({
+          title: "Using destination only",
+          description:
+            err.code === err.PERMISSION_DENIED
+              ? "Location access was denied — opening map without an origin."
+              : "Couldn't read your location — opening map without an origin.",
+        });
+        window.open(fallbackDirectionsUrl, "_blank", "noopener,noreferrer");
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+    );
+  };
 
   return (
     <article>
@@ -74,10 +111,12 @@ const PlaceDetail = () => {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild variant="hero" size="lg">
-              <a href={directionsUrl} target="_blank" rel="noreferrer">
-                Get directions <ExternalLink className="h-4 w-4" />
-              </a>
+            <Button variant="hero" size="lg" onClick={openDirections} disabled={locating}>
+              {locating ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Locating you…</>
+              ) : (
+                <><Navigation className="h-4 w-4" /> Get directions</>
+              )}
             </Button>
             <Button
               variant="outline"
@@ -142,10 +181,13 @@ const PlaceDetail = () => {
               />
             </div>
             <div className="mt-3 text-sm text-muted-foreground flex items-center justify-between flex-wrap gap-2">
-              <span>Coordinates: {place.coordinates[0].toFixed(4)}°, {place.coordinates[1].toFixed(4)}°</span>
-              <a href={directionsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                Open in Google Maps <ExternalLink className="h-3 w-3" />
-              </a>
+              <span>Coordinates: {lat.toFixed(5)}°, {lng.toFixed(5)}°</span>
+              <button
+                onClick={openDirections}
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                <Navigation className="h-3 w-3" /> Route from my location
+              </button>
             </div>
           </section>
 
