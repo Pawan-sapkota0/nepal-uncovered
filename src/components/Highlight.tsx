@@ -14,11 +14,12 @@ export function Highlight({ text, query, className }: HighlightProps) {
   const tokens = Array.from(new Set(q.split(/\s+/).filter((t) => t.length > 1)));
   if (tokens.length === 0) return <span className={className}>{text}</span>;
   const re = new RegExp(`(${tokens.map(escapeRegExp).join("|")})`, "gi");
+  const testRe = new RegExp(`^(?:${tokens.map(escapeRegExp).join("|")})$`, "i");
   const parts = text.split(re);
   return (
     <span className={className}>
       {parts.map((part, i) =>
-        re.test(part) ? (
+        testRe.test(part) ? (
           <mark
             key={i}
             className="bg-saffron/30 text-foreground rounded-sm px-0.5"
@@ -32,3 +33,4 @@ export function Highlight({ text, query, className }: HighlightProps) {
     </span>
   );
 }
+
