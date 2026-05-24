@@ -157,6 +157,7 @@ export const useApp = create<AppState>()(
     }),
     {
       name: "hidden-nepal-store",
+      version: 2,
       partialize: (s) => ({
         currentUser: s.currentUser,
         theme: s.theme,
@@ -166,6 +167,15 @@ export const useApp = create<AppState>()(
         users: s.users,
         filterPresets: s.filterPresets,
       }),
+      // Reseed places when coordinates / mock data change so accurate
+      // geocoding reaches users with an existing persisted store.
+      migrate: (persisted: any, version) => {
+        if (!persisted) return persisted;
+        if (version < 2) {
+          return { ...persisted, places: seedPlaces, submissions: seedSubmissions };
+        }
+        return persisted;
+      },
     }
   )
 );
