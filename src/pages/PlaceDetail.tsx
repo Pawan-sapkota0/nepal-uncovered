@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import {
   ArrowLeft, Bookmark, MapPin, CalendarDays, DollarSign, Mountain, FileCheck,
-  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, ExternalLink,
+  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, ExternalLink, Navigation, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 const PlaceDetail = () => {
   const { slug } = useParams();
