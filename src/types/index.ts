@@ -82,3 +82,17 @@ export interface Submission {
   submittedAt: string;
   reviewedAt?: string;
 }
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: {
+    query: string;
+    category: string;
+    province: string;
+    district: string;
+    difficulty: string;
+    hiddenOnly: boolean;
+  };
+  createdAt: string;
+}

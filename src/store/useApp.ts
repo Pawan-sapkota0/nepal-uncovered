@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Place, Submission, User, UserRole } from "@/types";
+import type { FilterPreset, Place, Submission, User, UserRole } from "@/types";
 import { places as seedPlaces, submissions as seedSubmissions, users as seedUsers } from "@/data/mock";
 
 interface AppState {
@@ -28,6 +28,11 @@ interface AppState {
   deletePlace: (placeId: string) => void;
   toggleFeatured: (placeId: string) => void;
   setUserRole: (userId: string, role: UserRole) => void;
+
+  // Filter presets
+  filterPresets: FilterPreset[];
+  savePreset: (preset: Omit<FilterPreset, "id" | "createdAt">) => void;
+  deletePreset: (id: string) => void;
 }
 
 export const useApp = create<AppState>()(
@@ -134,6 +139,21 @@ export const useApp = create<AppState>()(
           currentUser:
             get().currentUser?.id === userId ? { ...get().currentUser!, role } : get().currentUser,
         }),
+
+      filterPresets: [],
+      savePreset: (preset) =>
+        set({
+          filterPresets: [
+            {
+              ...preset,
+              id: `fp${Date.now()}`,
+              createdAt: new Date().toISOString(),
+            },
+            ...get().filterPresets,
+          ],
+        }),
+      deletePreset: (id) =>
+        set({ filterPresets: get().filterPresets.filter((p) => p.id !== id) }),
     }),
     {
       name: "hidden-nepal-store",
@@ -144,6 +164,7 @@ export const useApp = create<AppState>()(
         places: s.places,
         submissions: s.submissions,
         users: s.users,
+        filterPresets: s.filterPresets,
       }),
     }
   )

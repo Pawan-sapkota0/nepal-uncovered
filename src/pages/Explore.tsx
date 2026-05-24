@@ -1,25 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { LayoutGrid, List, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Bookmark, LayoutGrid, List, Save, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PlaceCard } from "@/components/places/PlaceCard";
+import { Highlight } from "@/components/Highlight";
 import { useApp } from "@/store/useApp";
 import { categories, districts, provinces } from "@/data/mock";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { MapPin, Eye } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 type Sort = "popular" | "newest" | "name";
 type View = "grid" | "list";
 
 const Explore = () => {
-  const { places } = useApp();
+  const { places, filterPresets, savePreset, deletePreset } = useApp();
   const [params, setParams] = useSearchParams();
 
   const [query, setQuery] = useState(params.get("q") ?? "");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [category, setCategory] = useState(params.get("category") ?? "all");
   const [province, setProvince] = useState(params.get("province") ?? "all");
   const [district, setDistrict] = useState("all");
@@ -27,20 +31,28 @@ const Explore = () => {
   const [hiddenOnly, setHiddenOnly] = useState(params.get("hidden") === "true");
   const [sort, setSort] = useState<Sort>("popular");
   const [view, setView] = useState<View>("grid");
+  const [presetName, setPresetName] = useState("");
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+
+  // Debounce keyword search (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     const next = new URLSearchParams();
-    if (query) next.set("q", query);
+    if (debouncedQuery) next.set("q", debouncedQuery);
     if (category !== "all") next.set("category", category);
     if (province !== "all") next.set("province", province);
     if (hiddenOnly) next.set("hidden", "true");
     setParams(next, { replace: true });
-  }, [query, category, province, hiddenOnly, setParams]);
+  }, [debouncedQuery, category, province, hiddenOnly, setParams]);
 
   const filtered = useMemo(() => {
     let list = places.filter((p) => p.status === "approved");
-    if (query) {
-      const q = query.toLowerCase();
+    if (debouncedQuery) {
+      const q = debouncedQuery.toLowerCase();
       list = list.filter(
         (p) =>
           p.title.toLowerCase().includes(q) ||
@@ -59,7 +71,7 @@ const Explore = () => {
     if (sort === "newest") list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     if (sort === "name") list.sort((a, b) => a.title.localeCompare(b.title));
     return list;
-  }, [places, query, category, province, district, difficulty, hiddenOnly, sort]);
+  }, [places, debouncedQuery, category, province, district, difficulty, hiddenOnly, sort]);
 
   const reset = () => {
     setQuery(""); setCategory("all"); setProvince("all"); setDistrict("all");
@@ -67,9 +79,33 @@ const Explore = () => {
   };
 
   const activeCount = [
-    query, category !== "all" && category, province !== "all" && province,
+    debouncedQuery, category !== "all" && category, province !== "all" && province,
     district !== "all" && district, difficulty !== "all" && difficulty, hiddenOnly && "hidden",
   ].filter(Boolean).length;
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) return;
+    savePreset({
+      name,
+      filters: { query: debouncedQuery, category, province, district, difficulty, hiddenOnly },
+    });
+    setPresetName("");
+    setPresetDialogOpen(false);
+    toast({ title: "Preset saved", description: `"${name}" is ready to apply anytime.` });
+  };
+
+  const applyPreset = (id: string) => {
+    const p = filterPresets.find((fp) => fp.id === id);
+    if (!p) return;
+    setQuery(p.filters.query);
+    setDebouncedQuery(p.filters.query);
+    setCategory(p.filters.category);
+    setProvince(p.filters.province);
+    setDistrict(p.filters.district);
+    setDifficulty(p.filters.difficulty);
+    setHiddenOnly(p.filters.hiddenOnly);
+  };
 
   return (
     <div className="pt-24 pb-20">
@@ -90,8 +126,22 @@ const Explore = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search places, districts, keywords…"
-              className="h-12 pl-12 bg-background border-border shadow-soft"
+              className="h-12 pl-12 pr-10 bg-background border-border shadow-soft"
             />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {query !== debouncedQuery && (
+              <span className="absolute -bottom-5 left-1 text-xs text-muted-foreground animate-pulse">
+                Searching…
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -182,6 +232,79 @@ const Explore = () => {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Saved presets */}
+          <div className="space-y-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                Saved presets
+              </label>
+              <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={activeCount === 0}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <Save className="h-3.5 w-3.5" /> Save
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Save current filters</DialogTitle>
+                  </DialogHeader>
+                  <Input
+                    autoFocus
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="e.g. Hidden Himalayan lakes"
+                    onKeyDown={(e) => e.key === "Enter" && handleSavePreset()}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {activeCount} active filter{activeCount === 1 ? "" : "s"} will be stored.
+                  </p>
+                  <DialogFooter>
+                    <Button variant="ghost" onClick={() => setPresetDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSavePreset} disabled={!presetName.trim()}>
+                      Save preset
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+            {filterPresets.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">
+                Tweak filters and save them for one-tap recall.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {filterPresets.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="group flex items-center gap-1 rounded-md border border-border bg-background hover:border-primary/50 transition"
+                  >
+                    <button
+                      onClick={() => applyPreset(preset.id)}
+                      className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-sm"
+                    >
+                      <Bookmark className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="truncate">{preset.name}</span>
+                    </button>
+                    <button
+                      onClick={() => deletePreset(preset.id)}
+                      className="shrink-0 h-7 w-7 grid place-items-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+                      aria-label={`Delete preset ${preset.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* Results */}
@@ -226,7 +349,7 @@ const Explore = () => {
             </div>
           ) : view === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filtered.map((p, i) => <PlaceCard key={p.id} place={p} index={i} />)}
+              {filtered.map((p, i) => <PlaceCard key={p.id} place={p} index={i} highlight={debouncedQuery} />)}
             </div>
           ) : (
             <div className="space-y-4">
@@ -246,8 +369,12 @@ const Explore = () => {
                       <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{p.views.toLocaleString()}</span>
                       {p.hidden && <Badge className="bg-saffron text-saffron-foreground border-0 gap-1"><Sparkles className="h-3 w-3" />Hidden gem</Badge>}
                     </div>
-                    <h3 className="font-display text-xl font-semibold group-hover:text-primary transition-colors">{p.title}</h3>
-                    <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">{p.shortDescription}</p>
+                    <h3 className="font-display text-xl font-semibold group-hover:text-primary transition-colors">
+                      <Highlight text={p.title} query={debouncedQuery} />
+                    </h3>
+                    <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
+                      <Highlight text={p.shortDescription} query={debouncedQuery} />
+                    </p>
                     <div className="mt-3 flex items-center gap-2">
                       <Badge variant="secondary" className="capitalize text-xs">{p.category}</Badge>
                       <Badge variant="outline" className="text-xs">{p.travel.difficulty}</Badge>

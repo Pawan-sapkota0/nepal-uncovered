@@ -4,14 +4,16 @@ import type { Place } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/store/useApp";
 import { cn } from "@/lib/utils";
+import { Highlight } from "@/components/Highlight";
 
 interface PlaceCardProps {
   place: Place;
   index?: number;
   variant?: "default" | "compact" | "feature";
+  highlight?: string;
 }
 
-export function PlaceCard({ place, index = 0, variant = "default" }: PlaceCardProps) {
+export function PlaceCard({ place, index = 0, variant = "default", highlight }: PlaceCardProps) {
   const { bookmarks, toggleBookmark } = useApp();
   const saved = bookmarks.includes(place.id);
 
@@ -41,10 +43,10 @@ export function PlaceCard({ place, index = 0, variant = "default" }: PlaceCardPr
             {place.district} · {place.province}
           </div>
           <h3 className="font-display text-2xl md:text-3xl font-semibold leading-tight">
-            {place.title}
+            <Highlight text={place.title} query={highlight} />
           </h3>
           <p className="mt-2 text-sm text-primary-foreground/85 line-clamp-2 max-w-md">
-            {place.shortDescription}
+            <Highlight text={place.shortDescription} query={highlight} />
           </p>
         </div>
       </Link>
@@ -96,10 +98,10 @@ export function PlaceCard({ place, index = 0, variant = "default" }: PlaceCardPr
           </span>
         </div>
         <h3 className="font-display text-xl font-semibold leading-snug group-hover:text-primary transition-colors">
-          {place.title}
+          <Highlight text={place.title} query={highlight} />
         </h3>
         <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-          {place.shortDescription}
+          <Highlight text={place.shortDescription} query={highlight} />
         </p>
         <div className="mt-4 flex items-center justify-between">
           <Badge variant="secondary" className="capitalize text-xs">{place.category}</Badge>
