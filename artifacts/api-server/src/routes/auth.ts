@@ -92,7 +92,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   const userRoles = await db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, user.id));
-  const roles = userRoles.map((r) => r.role);
+  const roles = [...new Set(userRoles.map((r) => r.role))];
 
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, user.id));
 
@@ -138,7 +138,7 @@ router.post("/auth/refresh", async (req, res): Promise<void> => {
   }).returning();
 
   const userRoles = await db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, stored.userId));
-  const roles = userRoles.map((r) => r.role);
+  const roles = [...new Set(userRoles.map((r) => r.role))];
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, stored.userId));
 
   const accessToken = signAccessToken({ sub: stored.userId, email: user.email, roles });
@@ -193,7 +193,7 @@ router.get("/auth/me", authenticate, async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const [profile] = await db.select().from(profilesTable).where(eq(profilesTable.userId, userId));
   const userRoles = await db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, userId));
-  const roles = userRoles.map((r) => r.role);
+  const roles = [...new Set(userRoles.map((r) => r.role))];
   if (!user || !profile) {
     res.status(404).json({ error: { code: "not_found", message: "User not found" } });
     return;
