@@ -3,6 +3,7 @@ import { eq, and, desc, count, sql } from "drizzle-orm";
 import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, categoriesTable } from "@workspace/db";
 import { authenticate } from "../middlewares/authenticate";
 import { requireRole, requireMinRole } from "../middlewares/requireRole";
+import { sendApprovedEmail, sendRejectedEmail, sendChangesRequestedEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -37,6 +38,12 @@ router.post("/admin/submissions/:id/approve", async (req, res): Promise<void> =>
     return;
   }
 
+  const [[place], [user], [profile]] = await Promise.all([
+    db.select({ slug: placesTable.slug, title: placesTable.title }).from(placesTable).where(eq(placesTable.id, submission.placeId)),
+    db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, submission.userId)),
+    db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.userId, submission.userId)),
+  ]);
+
   await db.update(submissionsTable).set({
     status: "approved", reviewedAt: new Date(), reviewedBy: reviewerId,
   }).where(eq(submissionsTable.id, id));
@@ -45,13 +52,22 @@ router.post("/admin/submissions/:id/approve", async (req, res): Promise<void> =>
     status: "approved", approvedBy: reviewerId, approvedAt: new Date(),
   }).where(eq(placesTable.id, submission.placeId));
 
-  // bump contributions count
   await db.update(profilesTable)
     .set({ contributionsCount: sql`${profilesTable.contributionsCount} + 1` })
     .where(eq(profilesTable.userId, submission.userId));
 
   req.log.info({ submissionId: id, reviewerId }, "Submission approved");
   res.json({ message: "Approved" });
+
+  // Send email non-blocking (after response)
+  if (user && place && profile) {
+    sendApprovedEmail({
+      to: user.email,
+      contributorName: profile.name,
+      placeTitle: place.title,
+      placeSlug: place.slug,
+    }).catch((err) => req.log.error({ err }, "Failed to send approval email"));
+  }
 });
 
 router.post("/admin/submissions/:id/reject", async (req, res): Promise<void> => {
@@ -65,6 +81,12 @@ router.post("/admin/submissions/:id/reject", async (req, res): Promise<void> => 
     return;
   }
 
+  const [[place], [user], [profile]] = await Promise.all([
+    db.select({ slug: placesTable.slug, title: placesTable.title }).from(placesTable).where(eq(placesTable.id, submission.placeId)),
+    db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, submission.userId)),
+    db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.userId, submission.userId)),
+  ]);
+
   await db.update(submissionsTable).set({
     status: "rejected", feedback, reviewedAt: new Date(), reviewedBy: reviewerId,
   }).where(eq(submissionsTable.id, id));
@@ -73,6 +95,16 @@ router.post("/admin/submissions/:id/reject", async (req, res): Promise<void> => 
 
   req.log.info({ submissionId: id, reviewerId }, "Submission rejected");
   res.json({ message: "Rejected" });
+
+  if (user && place && profile) {
+    sendRejectedEmail({
+      to: user.email,
+      contributorName: profile.name,
+      placeTitle: place.title,
+      placeSlug: place.slug,
+      feedback,
+    }).catch((err) => req.log.error({ err }, "Failed to send rejection email"));
+  }
 });
 
 router.post("/admin/submissions/:id/request-changes", async (req, res): Promise<void> => {
@@ -80,11 +112,33 @@ router.post("/admin/submissions/:id/request-changes", async (req, res): Promise<
   const { feedback } = req.body;
   const reviewerId = req.user!.sub;
 
+  const [submission] = await db.select().from(submissionsTable).where(eq(submissionsTable.id, id));
+  if (!submission) {
+    res.status(404).json({ error: { code: "not_found", message: "Submission not found" } });
+    return;
+  }
+
+  const [[place], [user], [profile]] = await Promise.all([
+    db.select({ slug: placesTable.slug, title: placesTable.title }).from(placesTable).where(eq(placesTable.id, submission.placeId)),
+    db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, submission.userId)),
+    db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.userId, submission.userId)),
+  ]);
+
   await db.update(submissionsTable).set({
     status: "changes_requested", feedback, reviewedAt: new Date(), reviewedBy: reviewerId,
   }).where(eq(submissionsTable.id, id));
 
   res.json({ message: "Changes requested" });
+
+  if (user && place && profile) {
+    sendChangesRequestedEmail({
+      to: user.email,
+      contributorName: profile.name,
+      placeTitle: place.title,
+      placeSlug: place.slug,
+      feedback,
+    }).catch((err) => req.log.error({ err }, "Failed to send changes-requested email"));
+  }
 });
 
 // Places management
