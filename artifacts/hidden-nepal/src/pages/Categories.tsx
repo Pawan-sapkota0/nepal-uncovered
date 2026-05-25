@@ -1,14 +1,25 @@
 import { Link } from "react-router-dom";
-import { categories } from "@/data/mock";
-import { useApp } from "@/store/useApp";
+import { useQuery } from "@tanstack/react-query";
+import { categories as categoriesApi, places as placesApi } from "@/lib/api";
+import { adaptPlaces } from "@/lib/placeAdapter";
 import { ArrowRight } from "lucide-react";
 
 const Categories = () => {
-  const { places } = useApp();
-  const counts = categories.map((c) => ({
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
+  });
+  const { data: placesResult } = useQuery({
+    queryKey: ["places", undefined, undefined, undefined, undefined, false],
+    queryFn: () => placesApi.list({ limit: 100 }),
+    staleTime: 60_000,
+  });
+  const allPlaces = adaptPlaces(placesResult?.data ?? []);
+  const counts = apiCategories.map((c) => ({
     ...c,
-    count: places.filter((p) => p.status === "approved" && p.category === c.slug).length,
-    sample: places.find((p) => p.status === "approved" && p.category === c.slug),
+    count: allPlaces.filter((p) => p.category === c.slug).length,
+    sample: allPlaces.find((p) => p.category === c.slug),
   }));
 
   return (

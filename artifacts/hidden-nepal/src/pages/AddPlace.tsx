@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
+import { places as placesApi, categories as categoriesApi } from "@/lib/api";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { categories, provinces } from "@/data/mock";
-import type { CategorySlug, Difficulty, Place, Province } from "@/types";
+import { provinces } from "@/data/mock";
+import type { Difficulty, Province } from "@/types";
 import { ArrowLeft, ImageIcon, Send } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,12 +19,21 @@ const slugify = (s: string) =>
 
 const AddPlace = () => {
   const navigate = useNavigate();
-  const { currentUser, addSubmission } = useApp();
-  useEffect(() => { if (!currentUser) navigate("/auth"); }, [currentUser, navigate]);
+  const { user: currentUser } = useAuth();
+
+  useEffect(() => {
+    if (currentUser === null) navigate("/auth");
+  }, [currentUser, navigate]);
+
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
+  });
 
   const [form, setForm] = useState({
     title: "", shortDescription: "", description: "", history: "",
-    category: "lakes" as CategorySlug,
+    category: "lakes",
     district: "", province: "Bagmati" as Province,
     lat: "27.7", lng: "85.3",
     coverImage: "",
@@ -37,7 +48,8 @@ const AddPlace = () => {
     localSupport: "",
   });
 
-  const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,41 +59,46 @@ const AddPlace = () => {
     reader.readAsDataURL(file);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const { mutate: submitPlace, isPending } = useMutation({
+    mutationFn: () =>
+      placesApi.create({
+        slug: slugify(form.title) + "-" + Date.now().toString(36),
+        title: form.title,
+        shortDescription: form.shortDescription,
+        description: form.description,
+        history: form.history || "Local history to be added.",
+        categorySlug: form.category,
+        district: form.district || "Unknown",
+        province: form.province as any,
+        lat: form.lat || "27.7",
+        lng: form.lng || "85.3",
+        coverImage: form.coverImage || undefined,
+        hidden: form.hidden,
+        bestSeason: form.bestSeason,
+        difficulty: form.difficulty as any,
+        costEstimate: form.costEstimate,
+        permits: form.permits,
+        durationDays: form.durationDays,
+        nearbyHospital: form.nearbyHospital || "Nearest district hospital",
+        emergency: form.emergency,
+        localSupport: form.localSupport || "Local community support",
+      }),
+    onSuccess: () => {
+      toast.success("Submitted! A moderator will review it shortly.");
+      navigate("/contribute");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message ?? "Failed to submit. Please try again.");
+    },
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.shortDescription || !form.description) {
       toast.error("Please fill in title and descriptions");
       return;
     }
-    const place: Omit<Place, "id" | "status" | "views" | "createdAt"> = {
-      slug: slugify(form.title) + "-" + Date.now().toString(36),
-      title: form.title,
-      shortDescription: form.shortDescription,
-      description: form.description,
-      history: form.history || "Local history to be added.",
-      category: form.category,
-      district: form.district || "Unknown",
-      province: form.province,
-      coordinates: [parseFloat(form.lat) || 27.7, parseFloat(form.lng) || 85.3],
-      coverImage: form.coverImage || "/placeholder.svg",
-      images: form.coverImage ? [form.coverImage] : ["/placeholder.svg"],
-      hidden: form.hidden,
-      travel: {
-        bestSeason: form.bestSeason,
-        difficulty: form.difficulty,
-        costEstimate: form.costEstimate,
-        permits: form.permits,
-        durationDays: form.durationDays,
-      },
-      safety: {
-        nearbyHospital: form.nearbyHospital || "Nearest district hospital",
-        emergency: form.emergency,
-        localSupport: form.localSupport || "Local community support",
-      },
-    };
-    addSubmission(place);
-    toast.success("Submitted! An admin will review it shortly.");
-    navigate("/contribute");
+    submitPlace();
   };
 
   if (!currentUser) return null;
@@ -96,7 +113,7 @@ const AddPlace = () => {
         <h1 className="font-display text-4xl font-semibold tracking-tight">Share a piece of Nepal</h1>
         <p className="mt-2 text-muted-foreground">Your submission will be reviewed by a moderator before it appears in the atlas.</p>
 
-        <form onSubmit={submit} className="mt-10 space-y-10">
+        <form onSubmit={onSubmit} className="mt-10 space-y-10">
           <Section title="Basics">
             <Field label="Place name" required>
               <Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Khaptad National Park" />
@@ -112,10 +129,12 @@ const AddPlace = () => {
             </Field>
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="Category">
-                <Select value={form.category} onValueChange={(v) => set("category", v as CategorySlug)}>
+                <Select value={form.category} onValueChange={(v) => set("category", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((c) => <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>)}
+                    {apiCategories.map((c) => (
+                      <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -208,8 +227,8 @@ const AddPlace = () => {
 
           <div className="flex flex-col sm:flex-row gap-3 sm:justify-end pt-4 border-t border-border">
             <Button type="button" variant="outline" onClick={() => navigate("/contribute")}>Cancel</Button>
-            <Button type="submit" variant="hero" size="lg">
-              <Send className="h-4 w-4" /> Submit for review
+            <Button type="submit" variant="hero" size="lg" disabled={isPending}>
+              <Send className="h-4 w-4" /> {isPending ? "Submitting…" : "Submit for review"}
             </Button>
           </div>
         </form>

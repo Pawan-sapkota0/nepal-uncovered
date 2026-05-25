@@ -1,7 +1,11 @@
 import jwt from "jsonwebtoken";
 import { randomBytes, createHash } from "crypto";
 
-const ACCESS_SECRET = process.env.JWT_SECRET ?? "hidden-nepal-dev-secret-change-in-prod";
+const ACCESS_SECRET = (() => {
+  const s = process.env.JWT_SECRET;
+  if (!s) throw new Error("JWT_SECRET environment variable is required but not set");
+  return s;
+})();
 const ACCESS_EXPIRES_IN = "15m";
 const REFRESH_EXPIRES_DAYS = 30;
 

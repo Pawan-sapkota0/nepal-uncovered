@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { admin } from "@/lib/api";
 import { LayoutDashboard, Inbox, MapPin, Users, ShieldCheck, Mountain, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,23 +14,32 @@ const adminLinks = [
 ];
 
 const AdminLayout = () => {
-  const { currentUser, submissions } = useApp();
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
 
+  const isAdminOrMod = currentUser?.roles?.some((r) => r === "admin" || r === "moderator") ?? false;
+
   useEffect(() => {
-    if (!currentUser) {
+    if (currentUser === null) {
       navigate("/auth");
       return;
     }
-    if (currentUser.role !== "admin" && currentUser.role !== "moderator") {
+    if (currentUser !== undefined && !isAdminOrMod) {
       navigate("/");
     }
-  }, [currentUser, navigate]);
+  }, [currentUser, isAdminOrMod, navigate]);
 
-  if (!currentUser) return null;
+  const { data: pendingSubmissions } = useQuery({
+    queryKey: ["admin-submissions", "pending"],
+    queryFn: () => admin.submissions("pending"),
+    enabled: isAdminOrMod,
+    staleTime: 30_000,
+  });
 
-  const pending = submissions.filter((s) => s.status === "pending").length;
+  if (!currentUser || !isAdminOrMod) return null;
+
+  const pending = pendingSubmissions?.length ?? 0;
 
   return (
     <div className="min-h-screen flex bg-muted/30">
@@ -87,7 +98,7 @@ const AdminLayout = () => {
           {open && (
             <div className="mt-3 px-3 py-2 rounded-md bg-sidebar-accent/40">
               <div className="text-xs font-medium truncate">{currentUser.name}</div>
-              <div className="text-[10px] text-muted-foreground capitalize">{currentUser.role}</div>
+              <div className="text-[10px] text-muted-foreground capitalize">{currentUser.roles?.join(", ")}</div>
             </div>
           )}
         </div>
