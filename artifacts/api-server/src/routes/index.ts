@@ -8,7 +8,7 @@ import reviewsRouter from "./reviews";
 import reportsRouter from "./reports";
 import filterPresetsRouter from "./filterPresets";
 import adminRouter from "./admin";
-import uploadsRouter from "./uploads";
+import storageRouter from "./storage";
 import meRouter from "./me";
 
 const router: IRouter = Router();
@@ -21,8 +21,8 @@ router.use(bookmarksRouter);
 router.use(reviewsRouter);
 router.use(reportsRouter);
 router.use(filterPresetsRouter);
-router.use(adminRouter);
-router.use(uploadsRouter);
+router.use("/admin", adminRouter);
+router.use(storageRouter);
 router.use(meRouter);
 
 export default router;

@@ -11,7 +11,7 @@ const router: IRouter = Router();
 router.use(authenticate, requireMinRole("moderator"));
 
 // Submissions management
-router.get("/admin/submissions", async (req, res): Promise<void> => {
+router.get("/submissions", async (req, res): Promise<void> => {
   const status = req.query.status as string | undefined;
   const rows = await db
     .select({
@@ -28,7 +28,7 @@ router.get("/admin/submissions", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.post("/admin/submissions/:id/approve", async (req, res): Promise<void> => {
+router.post("/submissions/:id/approve", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const reviewerId = req.user!.sub;
 
@@ -70,7 +70,7 @@ router.post("/admin/submissions/:id/approve", async (req, res): Promise<void> =>
   }
 });
 
-router.post("/admin/submissions/:id/reject", async (req, res): Promise<void> => {
+router.post("/submissions/:id/reject", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { feedback } = req.body;
   const reviewerId = req.user!.sub;
@@ -107,7 +107,7 @@ router.post("/admin/submissions/:id/reject", async (req, res): Promise<void> => 
   }
 });
 
-router.post("/admin/submissions/:id/request-changes", async (req, res): Promise<void> => {
+router.post("/submissions/:id/request-changes", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { feedback } = req.body;
   const reviewerId = req.user!.sub;
@@ -142,7 +142,7 @@ router.post("/admin/submissions/:id/request-changes", async (req, res): Promise<
 });
 
 // Places management
-router.patch("/admin/places/:id", requireRole("admin", "moderator"), async (req, res): Promise<void> => {
+router.patch("/places/:id", requireRole("admin", "moderator"), async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { featured, status, title, shortDescription, description } = req.body;
 
@@ -162,7 +162,7 @@ router.patch("/admin/places/:id", requireRole("admin", "moderator"), async (req,
 });
 
 // Users management (admin only)
-router.get("/admin/users", requireRole("admin"), async (req, res): Promise<void> => {
+router.get("/users", requireRole("admin"), async (req, res): Promise<void> => {
   const rows = await db
     .select({
       user: { id: usersTable.id, email: usersTable.email, createdAt: usersTable.createdAt, disabledAt: usersTable.disabledAt },
@@ -179,7 +179,7 @@ router.get("/admin/users", requireRole("admin"), async (req, res): Promise<void>
   res.json(withRoles);
 });
 
-router.patch("/admin/users/:id/roles", requireRole("admin"), async (req, res): Promise<void> => {
+router.patch("/users/:id/roles", requireRole("admin"), async (req, res): Promise<void> => {
   const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { roles } = req.body as { roles: string[] };
   if (!Array.isArray(roles)) {
@@ -195,19 +195,19 @@ router.patch("/admin/users/:id/roles", requireRole("admin"), async (req, res): P
 });
 
 // Reports management
-router.get("/admin/reports", async (req, res): Promise<void> => {
+router.get("/reports", async (req, res): Promise<void> => {
   const rows = await db.select().from(reportsTable).orderBy(desc(reportsTable.createdAt));
   res.json(rows);
 });
 
-router.patch("/admin/reports/:id/resolve", async (req, res): Promise<void> => {
+router.patch("/reports/:id/resolve", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.update(reportsTable).set({ resolved: true }).where(eq(reportsTable.id, id));
   res.json({ message: "Resolved" });
 });
 
 // Stats
-router.get("/admin/stats", async (req, res): Promise<void> => {
+router.get("/stats", async (req, res): Promise<void> => {
   const [totalPlaces] = await db.select({ count: count() }).from(placesTable);
   const [pendingSubs] = await db.select({ count: count() }).from(submissionsTable).where(eq(submissionsTable.status, "pending"));
   const [totalUsers] = await db.select({ count: count() }).from(usersTable);
