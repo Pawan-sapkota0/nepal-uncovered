@@ -36,7 +36,7 @@ const Categories = () => {
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {counts.map((c, i) => (
             <Link
-              key={c.id}
+              key={c.slug}
               to={`/explore?category=${c.slug}`}
               className="group relative overflow-hidden rounded-2xl border border-border bg-card hover-lift animate-fade-up"
               style={{ animationDelay: `${i * 60}ms` }}

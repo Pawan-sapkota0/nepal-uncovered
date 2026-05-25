@@ -199,7 +199,7 @@ const Explore = () => {
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
                 {apiCategories.map((c) => (
-                  <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
+                  <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
