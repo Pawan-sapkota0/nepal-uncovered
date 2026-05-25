@@ -50,7 +50,10 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
   const passwordHash = await hashPassword(password);
   const [user] = await db.insert(usersTable).values({ email: email.toLowerCase(), passwordHash }).returning();
   await db.insert(profilesTable).values({ userId: user.id, name });
-  await db.insert(userRolesTable).values({ userId: user.id, role: "viewer" });
+  await db.insert(userRolesTable).values([
+    { userId: user.id, role: "viewer" },
+    { userId: user.id, role: "contributor" },
+  ]);
 
   const { raw, hash, expiresAt } = generateRefreshToken();
   await db.insert(refreshTokensTable).values({
@@ -59,7 +62,7 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
     ip: req.ip ?? null,
   });
 
-  const roles = ["viewer"];
+  const roles = ["viewer", "contributor"];
   const accessToken = signAccessToken({ sub: user.id, email: user.email, roles });
 
   setRefreshCookie(res, raw);
