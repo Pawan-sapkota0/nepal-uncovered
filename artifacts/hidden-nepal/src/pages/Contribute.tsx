@@ -1,31 +1,33 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { me } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Award, CheckCircle2, Clock, XCircle, Trash2 } from "lucide-react";
+import { Plus, Award, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
 import { useEffect } from "react";
-import { toast } from "sonner";
 
 const Contribute = () => {
-  const { currentUser, places, submissions, deletePlace } = useApp();
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!currentUser) navigate("/auth");
   }, [currentUser, navigate]);
 
-  if (!currentUser) return null;
+  const { data: mySubs = [], isLoading } = useQuery({
+    queryKey: ["me", "submissions"],
+    queryFn: () => me.submissions(),
+    enabled: !!currentUser,
+  });
 
-  const mySubs = submissions
-    .filter((s) => s.userId === currentUser.id)
-    .map((s) => ({ submission: s, place: places.find((p) => p.id === s.placeId) }))
-    .filter((x) => x.place);
+  if (!currentUser) return null;
 
   const stats = {
     total: mySubs.length,
-    approved: mySubs.filter((m) => m.submission.status === "approved").length,
-    pending: mySubs.filter((m) => m.submission.status === "pending").length,
-    rejected: mySubs.filter((m) => m.submission.status === "rejected").length,
+    approved: mySubs.filter((m) => m.status === "approved").length,
+    pending: mySubs.filter((m) => m.status === "pending").length,
+    rejected: mySubs.filter((m) => m.status === "rejected").length,
   };
 
   return (
@@ -60,7 +62,9 @@ const Contribute = () => {
             <h2 className="font-display text-xl font-semibold">My submissions</h2>
             <span className="text-sm text-muted-foreground">{mySubs.length} total</span>
           </div>
-          {mySubs.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : mySubs.length === 0 ? (
             <div className="p-12 text-center">
               <p className="text-muted-foreground mb-4">You haven't shared a place yet.</p>
               <Button variant="hero" onClick={() => navigate("/contribute/new")}>
@@ -69,36 +73,23 @@ const Contribute = () => {
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {mySubs.map(({ submission, place }) => place && (
-                <li key={submission.id} className="p-5 flex items-center gap-4 hover:bg-muted/50 transition">
-                  <Link to={`/place/${place.slug}`} className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted">
-                    <img src={place.coverImage} alt={place.title} className="h-full w-full object-cover" />
+              {mySubs.map((sub) => (
+                <li key={sub.id} className="p-5 flex items-center gap-4 hover:bg-muted/50 transition">
+                  <Link to={`/place/${sub.place.slug}`} className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-2xl">
+                    🏔
                   </Link>
                   <div className="flex-1 min-w-0">
-                    <Link to={`/place/${place.slug}`} className="font-display font-semibold hover:text-primary block truncate">
-                      {place.title}
+                    <Link to={`/place/${sub.place.slug}`} className="font-display font-semibold hover:text-primary block truncate">
+                      {sub.place.title}
                     </Link>
                     <div className="text-sm text-muted-foreground">
-                      {place.district} · Submitted {submission.submittedAt}
+                      {sub.place.district} · Submitted {new Date(sub.submittedAt).toLocaleDateString()}
                     </div>
-                    {submission.feedback && (
-                      <div className="text-xs mt-1 text-destructive">Feedback: {submission.feedback}</div>
+                    {sub.feedback && (
+                      <div className="text-xs mt-1 text-destructive">Feedback: {sub.feedback}</div>
                     )}
                   </div>
-                  <StatusBadge status={submission.status} />
-                  {submission.status === "pending" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        deletePlace(place.id);
-                        toast.success("Submission withdrawn");
-                      }}
-                      aria-label="Withdraw submission"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
+                  <StatusBadge status={sub.status as any} />
                 </li>
               ))}
             </ul>

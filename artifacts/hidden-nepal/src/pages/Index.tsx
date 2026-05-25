@@ -5,16 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
-import { useApp } from "@/store/useApp";
-import { categories } from "@/data/mock";
+import { useQuery } from "@tanstack/react-query";
+import { places as placesApi, categories as categoriesApi } from "@/lib/api";
+import { adaptPlaces } from "@/lib/placeAdapter";
 import hero from "@/assets/hero-himalaya.jpg";
 
 const Landing = () => {
-  const { places } = useApp();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
-  const approved = places.filter((p) => p.status === "approved");
+  const { data: placesResult } = useQuery({
+    queryKey: ["places", undefined, undefined, undefined, undefined, false],
+    queryFn: () => placesApi.list({ limit: 100 }),
+    staleTime: 60_000,
+  });
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
+  });
+
+  const approved = adaptPlaces(placesResult?.data ?? []);
   const trending = [...approved].sort((a, b) => b.views - a.views).slice(0, 4);
   const hidden = approved.filter((p) => p.hidden).slice(0, 6);
   const featured = approved.filter((p) => p.featured).slice(0, 3);
@@ -132,9 +143,9 @@ const Landing = () => {
           </h2>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {categories.map((c, i) => (
+          {apiCategories.map((c, i) => (
             <Link
-              key={c.id}
+              key={c.slug}
               to={`/explore?category=${c.slug}`}
               className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 hover-lift animate-fade-up"
               style={{ animationDelay: `${i * 50}ms` }}

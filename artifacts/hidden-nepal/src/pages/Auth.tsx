@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { Mountain, Mail } from "lucide-react";
+import { Mountain, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 
 const Auth = () => {
   const [params] = useSearchParams();
@@ -14,29 +15,53 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useApp();
+  const [loading, setLoading] = useState(false);
+  const { login, signup } = useAuth();
   const navigate = useNavigate();
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || (mode === "signup" && !name)) {
       toast.error("Please fill in all fields");
       return;
     }
-    login(email, "contributor");
-    toast.success(mode === "signup" ? "Welcome to Hidden Nepal!" : "Welcome back");
-    navigate("/contribute");
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        await signup(email, password, name);
+        toast.success("Welcome to Hidden Nepal!");
+        navigate("/contribute");
+      } else {
+        await login(email, password);
+        toast.success("Welcome back!");
+        const returnTo = params.get("returnTo") ?? "/contribute";
+        navigate(returnTo);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === "invalid_credentials") toast.error("Invalid email or password");
+        else if (err.code === "email_taken") toast.error("Email already registered — try logging in");
+        else if (err.code === "account_disabled") toast.error("This account has been disabled");
+        else toast.error(err.message ?? "Something went wrong");
+      } else {
+        toast.error("Cannot reach the server. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const quickLogin = (role: "contributor" | "admin") => {
-    if (role === "admin") {
-      login("admin@hiddennepal.app", "admin");
-      toast.success("Signed in as admin");
-      navigate("/admin");
-    } else {
-      login("aanya@hiddennepal.app", "contributor");
-      toast.success("Signed in as contributor");
-      navigate("/contribute");
+  const quickLogin = async (role: "contributor" | "admin") => {
+    const demoEmail = role === "admin" ? "admin@hiddennepal.app" : "contributor@hiddennepal.app";
+    setLoading(true);
+    try {
+      await login(demoEmail, "nepal2024!");
+      toast.success(`Signed in as ${role}`);
+      navigate(role === "admin" ? "/admin" : "/contribute");
+    } catch {
+      toast.error("Demo login failed — make sure the API is running and the DB is seeded.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -80,19 +105,20 @@ const Auth = () => {
             {mode === "signup" && (
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Aanya Shrestha" />
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Aanya Shrestha" disabled={loading} />
               </div>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" disabled={loading} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={loading} />
             </div>
-            <Button type="submit" variant="hero" size="lg" className="w-full">
-              <Mail className="h-4 w-4" /> {mode === "login" ? "Sign in" : "Create account"}
+            <Button type="submit" variant="hero" size="lg" className="w-full" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              {mode === "login" ? "Sign in" : "Create account"}
             </Button>
           </form>
 
@@ -109,10 +135,10 @@ const Auth = () => {
           <div className="mt-10 rounded-xl border border-dashed border-border p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Demo shortcuts</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => quickLogin("contributor")}>Sign in as contributor</Button>
-              <Button variant="outline" size="sm" onClick={() => quickLogin("admin")}>Sign in as admin</Button>
+              <Button variant="outline" size="sm" onClick={() => quickLogin("contributor")} disabled={loading}>Sign in as contributor</Button>
+              <Button variant="outline" size="sm" onClick={() => quickLogin("admin")} disabled={loading}>Sign in as admin</Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Mock auth — no backend yet. Connect Lovable Cloud later for real accounts.</p>
+            <p className="text-xs text-muted-foreground mt-3">Password for all demo accounts: <code className="bg-muted px-1 rounded">nepal2024!</code></p>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
 import SiteLayout from "@/components/layout/SiteLayout";
 import Index from "./pages/Index";
 import Explore from "./pages/Explore";
@@ -21,13 +22,19 @@ import PlacesAdmin from "./pages/admin/PlacesAdmin";
 import UsersAdmin from "./pages/admin/UsersAdmin";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
 const ThemeBoot = () => {
   const theme = useApp((s) => s.theme);
+  const loadMe = useAuth((s) => s.loadMe);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+  useEffect(() => {
+    loadMe();
+  }, [loadMe]);
   return null;
 };
 

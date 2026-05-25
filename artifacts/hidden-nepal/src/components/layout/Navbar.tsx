@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useApp } from "@/store/useApp";
+import { useAuth } from "@/store/useAuth";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,9 @@ const links = [
 ];
 
 export function Navbar() {
-  const { currentUser, logout, theme, toggleTheme } = useApp();
+  const { theme, toggleTheme } = useApp();
+  const { user: currentUser, logout: authLogout } = useAuth();
+  const logout = () => authLogout();
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
@@ -115,7 +118,7 @@ export function Navbar() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="font-medium">{currentUser.name}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{currentUser.role}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{currentUser.roles?.[currentUser.roles.length - 1] ?? "viewer"}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/contribute")}>
@@ -124,7 +127,7 @@ export function Navbar() {
                 <DropdownMenuItem onClick={() => navigate("/contribute/new")}>
                   <UserIcon className="h-4 w-4 mr-2" /> Add a place
                 </DropdownMenuItem>
-                {(currentUser.role === "admin" || currentUser.role === "moderator") && (
+                {(currentUser.roles?.includes("admin") || currentUser.roles?.includes("moderator")) && (
                   <DropdownMenuItem onClick={() => navigate("/admin")}>
                     <ShieldCheck className="h-4 w-4 mr-2" /> Admin dashboard
                   </DropdownMenuItem>
@@ -179,7 +182,7 @@ export function Navbar() {
                   <>
                     <RRNavLink to="/contribute" className="px-3 py-3 rounded-md text-base hover:bg-muted">My contributions</RRNavLink>
                     <RRNavLink to="/contribute/new" className="px-3 py-3 rounded-md text-base hover:bg-muted">Add a place</RRNavLink>
-                    {(currentUser.role === "admin" || currentUser.role === "moderator") && (
+                    {(currentUser.roles?.includes("admin") || currentUser.roles?.includes("moderator")) && (
                       <RRNavLink to="/admin" className="px-3 py-3 rounded-md text-base hover:bg-muted">Admin</RRNavLink>
                     )}
                     <Button variant="outline" onClick={logout} className="mt-2">Sign out</Button>

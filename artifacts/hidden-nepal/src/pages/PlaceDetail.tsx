@@ -5,21 +5,46 @@ import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import {
   ArrowLeft, Bookmark, MapPin, CalendarDays, DollarSign, Mountain, FileCheck,
-  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, ExternalLink, Navigation, Loader2,
+  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { places as placesApi } from "@/lib/api";
+import { adaptPlace, adaptPlaces } from "@/lib/placeAdapter";
 
 const PlaceDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { places, bookmarks, toggleBookmark } = useApp();
-  const place = places.find((p) => p.slug === slug);
+  const { bookmarks, toggleBookmark } = useApp();
+
+  const { data: apiPlace, isLoading, isError } = useQuery({
+    queryKey: ["place", slug],
+    queryFn: () => placesApi.get(slug!),
+    enabled: !!slug,
+    staleTime: 60_000,
+  });
+
+  const { data: relatedResult } = useQuery({
+    queryKey: ["places", undefined, undefined, undefined, undefined, false],
+    queryFn: () => placesApi.list({ limit: 100 }),
+    staleTime: 60_000,
+  });
+
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [slug]);
 
-  if (!place) {
+  if (isLoading) {
+    return (
+      <div className="container pt-32 pb-20 text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError || !apiPlace) {
     return (
       <div className="container pt-32 pb-20 text-center">
         <p className="font-display text-2xl mb-4">We couldn't find that place.</p>
@@ -28,16 +53,16 @@ const PlaceDetail = () => {
     );
   }
 
-  const saved = bookmarks.includes(place.id);
-  const related = places
-    .filter((p) => p.status === "approved" && p.id !== place.id && (p.category === place.category || p.province === place.province))
+  const place = adaptPlace(apiPlace);
+  const allPlaces = adaptPlaces(relatedResult?.data ?? []);
+  const related = allPlaces
+    .filter((p) => p.id !== place.id && (p.category === place.category || p.province === place.province))
     .slice(0, 3);
 
+  const saved = bookmarks.includes(place.id);
   const [lat, lng] = place.coordinates;
   const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.3},${lng + 0.5},${lat + 0.3}&marker=${lat},${lng}&layer=mapnik`;
   const fallbackDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-
-  const [locating, setLocating] = useState(false);
 
   const openDirections = () => {
     const dest = `${lat},${lng}`;

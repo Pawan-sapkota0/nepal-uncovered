@@ -9,17 +9,20 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { PlaceCard } from "@/components/places/PlaceCard";
 import { Highlight } from "@/components/Highlight";
 import { useApp } from "@/store/useApp";
-import { categories, districts, provinces } from "@/data/mock";
+import { places as placesApi, categories as categoriesApi } from "@/lib/api";
+import { adaptPlaces } from "@/lib/placeAdapter";
+import { useQuery } from "@tanstack/react-query";
+import { districts, provinces } from "@/data/mock";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { MapPin, Eye } from "lucide-react";
+import { MapPin, Eye, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 type Sort = "popular" | "newest" | "name";
 type View = "grid" | "list";
 
 const Explore = () => {
-  const { places, filterPresets, savePreset, deletePreset } = useApp();
+  const { filterPresets, savePreset, deletePreset } = useApp();
   const [params, setParams] = useSearchParams();
 
   const [query, setQuery] = useState(params.get("q") ?? "");
@@ -49,29 +52,34 @@ const Explore = () => {
     setParams(next, { replace: true });
   }, [debouncedQuery, category, province, hiddenOnly, setParams]);
 
-  const filtered = useMemo(() => {
-    let list = places.filter((p) => p.status === "approved");
-    if (debouncedQuery) {
-      const q = debouncedQuery.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.district.toLowerCase().includes(q) ||
-          p.shortDescription.toLowerCase().includes(q) ||
-          p.category.includes(q)
-      );
-    }
-    if (category !== "all") list = list.filter((p) => p.category === category);
-    if (province !== "all") list = list.filter((p) => p.province === province);
-    if (district !== "all") list = list.filter((p) => p.district === district);
-    if (difficulty !== "all") list = list.filter((p) => p.travel.difficulty === difficulty);
-    if (hiddenOnly) list = list.filter((p) => p.hidden);
+  const { data: apiResult, isLoading: placesLoading } = useQuery({
+    queryKey: ["places", debouncedQuery, category, province, difficulty, hiddenOnly],
+    queryFn: () => placesApi.list({
+      query: debouncedQuery || undefined,
+      category: category !== "all" ? category : undefined,
+      province: province !== "all" ? province : undefined,
+      difficulty: difficulty !== "all" ? difficulty : undefined,
+      hidden: hiddenOnly || undefined,
+      limit: 100,
+    }),
+    staleTime: 30_000,
+  });
 
-    if (sort === "popular") list.sort((a, b) => b.views - a.views);
-    if (sort === "newest") list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-    if (sort === "name") list.sort((a, b) => a.title.localeCompare(b.title));
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
+  });
+
+  const filtered = useMemo(() => {
+    const apiPlaces = adaptPlaces(apiResult?.data ?? []);
+    let list = apiPlaces;
+    if (district !== "all") list = list.filter((p) => p.district === district);
+    if (sort === "popular") list = [...list].sort((a, b) => b.views - a.views);
+    if (sort === "newest") list = [...list].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    if (sort === "name") list = [...list].sort((a, b) => a.title.localeCompare(b.title));
     return list;
-  }, [places, debouncedQuery, category, province, district, difficulty, hiddenOnly, sort]);
+  }, [apiResult, district, sort]);
 
   const reset = () => {
     setQuery(""); setCategory("all"); setProvince("all"); setDistrict("all");
@@ -190,7 +198,7 @@ const Explore = () => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {categories.map((c) => (
+                {apiCategories.map((c) => (
                   <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
                 ))}
               </SelectContent>

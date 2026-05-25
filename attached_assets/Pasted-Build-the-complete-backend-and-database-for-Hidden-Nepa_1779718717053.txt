@@ -1,0 +1,250 @@
+Build the complete backend and database for Hidden Nepal, a community-driven travel discovery platform for Nepal with four roles: viewer, contributor, moderator, admin. The frontend is React + Vite + TypeScript and currently uses a Zustand mock store; replace it with real API calls. Use PostgreSQL 15+ as the database and a real authentication system (JWT-based, email/password + Google OAuth, with password reset and email verification). Deliver migrations, seed data, REST/RPC endpoints, storage, RLS-style authorization, tests, and updated frontend hooks.
+
+1. Tech stack
+Database: PostgreSQL 15+ (with pgcrypto, uuid-ossp, pg_trgm, unaccent, citext).
+Backend runtime: Node.js 20 + TypeScript, framework of your choice (Fastify, NestJS, or Express + zod). Keep it modular: routes/, services/, repositories/, schemas/, middleware/, jobs/.
+ORM / query layer: Drizzle ORM or Kysely (typed, migration-friendly). No raw string SQL from request handlers.
+Auth: JWT access tokens (15 min) + rotating refresh tokens (httpOnly, Secure, SameSite=Lax, 30 days). Argon2id password hashing. Google OAuth 2.0. Magic-link optional.
+Storage: S3-compatible object storage (AWS S3 / Cloudflare R2 / MinIO). Signed upload URLs.
+Email: SMTP via Nodemailer or a transactional provider (Resend / Postmark / SES). HTML templates for verification, reset, moderation notifications.
+Background jobs: BullMQ + Redis for emails, image processing, view-count flushing, audit log fan-out.
+Validation: zod schemas shared between client and server.
+API style: REST with JSON; OpenAPI 3.1 spec auto-generated.
+Tests: Vitest + Supertest; testcontainers for Postgres.
+Tooling: Docker Compose for local Postgres + Redis + MinIO + Mailhog.
+2. Database schema
+Conventions for every table: id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(), updated_at timestamptz not null default now() maintained by a shared set_updated_at() trigger. Foreign keys cascade where it makes sense; otherwise restrict.
+
+2.1 Enums
+create type app_role      as enum ('viewer','contributor','moderator','admin');
+create type province      as enum ('Koshi','Madhesh','Bagmati','Gandaki','Lumbini','Karnali','Sudurpashchim');
+create type difficulty    as enum ('Easy','Moderate','Challenging','Extreme');
+create type place_status  as enum ('draft','pending','approved','rejected','archived');
+create type sub_status    as enum ('pending','approved','rejected','changes_requested');
+create type report_reason as enum ('inaccurate','unsafe','spam','duplicate','offensive','other');
+2.2 Tables
+users — identity root
+
+email citext unique not null
+password_hash text (nullable for OAuth-only users)
+email_verified_at timestamptz
+last_login_at timestamptz
+disabled_at timestamptz
+oauth_accounts
+
+user_id uuid → users on delete cascade
+provider text (e.g. 'google'), provider_account_id text
+unique(provider, provider_account_id)
+refresh_tokens
+
+user_id uuid, token_hash text unique, expires_at timestamptz
+revoked_at timestamptz, replaced_by uuid, user_agent text, ip inet
+email_verification_tokens / password_reset_tokens
+
+user_id, token_hash unique, expires_at, used_at.
+profiles — 1:1 with users
+
+user_id uuid pk references users on delete cascade
+name text not null, bio text, avatar_url text
+contributions_count int not null default 0 (kept current by trigger)
+joined_at timestamptz default now()
+user_roles — never store the role on profiles
+
+user_id uuid references users on delete cascade
+role app_role not null
+unique(user_id, role)
+categories
+
+slug text unique not null, name text not null, description text, icon text, sort_order int.
+places
+
+slug text unique not null
+title text not null, short_description text not null, description text not null, history text
+category_slug text references categories(slug) on delete restrict
+district text not null, province province not null
+lat numeric(9,6) not null, lng numeric(9,6) not null
+cover_image text, images text[] not null default '{}'
+hidden boolean not null default false (hidden-gem flag)
+featured boolean not null default false
+views int not null default 0
+best_season text, difficulty difficulty, cost_estimate text, permits text, duration_days int
+nearby_hospital text, emergency text, local_support text
+status place_status not null default 'pending'
+submitted_by uuid references users on delete set null
+approved_by uuid references users, approved_at timestamptz
+search_tsv tsvector generated always as ( setweight(to_tsvector('simple', unaccent(coalesce(title,''))), 'A') || setweight(to_tsvector('simple', unaccent(coalesce(short_description,''))), 'B') || setweight(to_tsvector('simple', unaccent(coalesce(description,''))), 'C') || setweight(to_tsvector('simple', unaccent(coalesce(district,''))), 'B') ) stored
+submissions — moderation queue (one row per create/edit cycle)
+
+place_id uuid references places on delete cascade
+user_id uuid references users on delete cascade
+status sub_status not null default 'pending'
+feedback text
+submitted_at timestamptz default now(), reviewed_at timestamptz, reviewed_by uuid.
+bookmarks — unique(user_id, place_id).
+
+filter_presets — user_id, name, filters jsonb.
+
+reviews — place_id, user_id, rating int check (rating between 1 and 5), body text, unique(place_id,user_id).
+
+reports — place_id, reporter_id, reason report_reason, details text, resolved boolean default false.
+
+place_views — append-only: place_id, viewer_id nullable, ip_hash text, viewed_at.
+
+audit_log — actor_id, action text, entity text, entity_id uuid, meta jsonb, created_at.
+
+2.3 Indexes
+create index on places using gin (search_tsv);
+create index on places (status, featured, hidden);
+create index on places (category_slug);
+create index on places (province, district);
+create index on submissions (status, submitted_at desc);
+create index on bookmarks (user_id);
+create index on reviews (place_id);
+create index on place_views (place_id, viewed_at desc);
+3. Authorization model
+Implement an authorization layer in the API (middleware) that derives the caller's roles from user_roles and enforces these rules. Mirror the same checks at the database layer using Postgres RLS so the model holds even if a query slips through.
+
+Helper SQL:
+
+create or replace function public.has_role(_uid uuid, _role app_role)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists(select 1 from user_roles where user_id = _uid and role = _role)
+$$;
+
+create or replace function public.is_staff(_uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select has_role(_uid,'moderator') or has_role(_uid,'admin')
+$$;
+RLS rules (enable on every table):
+
+Table	Select	Insert	Update	Delete
+profiles	public	trigger only	self	—
+user_roles	self or staff	admin	admin	admin
+categories	public	admin	admin	admin
+places	status='approved' OR submitter OR staff	authenticated AND submitted_by=auth.uid() AND status∈(draft,pending)	owner while status∈(draft,pending,changes_requested) OR staff	admin
+submissions	owner or staff	owner	staff	admin
+bookmarks	owner	owner	owner	owner
+filter_presets	owner	owner	owner	owner
+reviews	public	owner	owner	owner
+reports	staff	authenticated	staff	admin
+place_views	staff	rate-limited insert via API	—	admin
+audit_log	admin	service role	—	—
+Set the request user id with set local request.jwt.claims = ... or set local app.user_id = ... at the start of every transaction so RLS policies can read auth.uid() (define auth.uid() as a SQL function returning that GUC).
+
+4. Triggers & functions
+set_updated_at() — generic BEFORE UPDATE on every table.
+handle_new_user() — AFTER INSERT ON users → insert into profiles and assign viewer role.
+bump_contributions() — when places.status transitions to 'approved', increment profiles.contributions_count for submitted_by.
+auto_create_submission() — AFTER INSERT ON places with status pending → insert matching submissions row.
+audit_changes() — AFTER INSERT/UPDATE/DELETE on places, submissions, user_roles, reports → append to audit_log.
+5. Authentication
+Endpoints under /auth:
+
+Method	Path	Body	Notes
+POST	/signup	email, password, name	Argon2id hash; send verification email; create profile via trigger
+POST	/login	email, password	Returns access JWT + sets refresh cookie
+POST	/refresh	—	Rotates refresh token; revokes old one
+POST	/logout	—	Revokes refresh token, clears cookie
+POST	/verify-email	token	Marks email_verified_at
+POST	/forgot-password	email	Issues reset token; always 200
+POST	/reset-password	token, newPassword	Validates token, updates hash, revokes all refresh tokens
+GET	/oauth/google	—	Redirect to Google
+GET	/oauth/google/callback	code	Upserts user + oauth_accounts, issues tokens
+GET	/me	—	Returns profile + roles
+Requirements:
+
+Argon2id, memoryCost ≥ 19 MiB, timeCost ≥ 2.
+JWT signed with EdDSA (Ed25519) or RS256; keys rotated; kid in header.
+Refresh tokens stored only as SHA-256 hash in DB.
+Brute-force protection: per-IP and per-email rate limit on /login, /forgot-password, /signup (e.g. 5 / 15 min).
+HIBP password check on signup and reset (k-anonymity API).
+Email enumeration safe responses.
+All tokens single-use, time-bound, and revocable.
+6. REST API
+Conventions: Authorization: Bearer <jwt>, JSON only, snake_case fields, cursor pagination (?cursor=&limit=), zod-validated bodies, OpenAPI documented, consistent error envelope:
+
+{ "error": { "code": "validation_error", "message": "...", "details": [...] } }
+Public
+GET /categories
+GET /places?query=&category=&province=&district=&difficulty=&hidden=&sort=&cursor=&limit= — full-text search via search_tsv + ts_rank.
+GET /places/:slug
+POST /places/:slug/view — debounced view recorder (hash IP, 30-min window).
+GET /places/:slug/reviews
+Authenticated (any role)
+POST /bookmarks / DELETE /bookmarks/:placeId / GET /bookmarks
+POST /reviews / PATCH /reviews/:id / DELETE /reviews/:id
+POST /reports { place_id, reason, details }
+GET /filter-presets / POST / DELETE /:id
+PATCH /me (name, bio, avatar)
+Contributor
+POST /uploads/sign → returns presigned PUT URL for place-images/{user_id}/{slug}/{uuid}.jpg.
+POST /places — creates draft/pending place; trigger inserts submission.
+PATCH /places/:id — only owner while editable.
+GET /me/submissions
+Moderator / Admin
+GET /admin/submissions?status=
+POST /admin/submissions/:id/approve
+POST /admin/submissions/:id/reject { feedback }
+POST /admin/submissions/:id/request-changes { feedback }
+PATCH /admin/places/:id (feature, archive, edit any field)
+GET /admin/users / PATCH /admin/users/:id/roles (admin only)
+GET /admin/reports / PATCH /admin/reports/:id/resolve
+GET /admin/stats (counts by status, top contributors, recent activity)
+7. Object storage
+Buckets: place-images (public-read), avatars (public-read), place-images-private (signed-read, staff only).
+Server issues short-lived (5 min) presigned PUT URLs scoped to the user's prefix.
+Server validates uploads in a webhook or post-upload confirm endpoint: MIME image/jpeg|png|webp, max 5 MB, dimensions ≤ 6000 px.
+Background job generates thumb, card, hero variants and stores their URLs on the places row.
+Strip EXIF, run image moderation (optional Rekognition / SightEngine) before publishing.
+8. Background jobs (BullMQ)
+email.send — verification, reset, submission status updates.
+image.process — resize + EXIF strip + variant upload.
+views.flush — batch increment places.views from place_views every 60 s.
+audit.fanout — optional Slack/Discord webhook on moderator actions.
+cleanup.tokens — purge expired auth tokens nightly.
+9. Seed data
+8 categories matching the frontend CategorySlug.
+The 8 starter places from src/data/mock.ts (Rara, Upper Mustang, Tilicho, Bandipur, Phoksundo, Boudhanath, Ghandruk, Chitwan) with the existing coordinates, status='approved'.
+4 demo users (viewer, contributor, moderator, admin) with hashed passwords and assigned roles.
+10. Security & operations
+TLS only; HSTS; secure cookies.
+Helmet-equivalent headers; strict CORS allow-list.
+Per-route rate limits (Redis token bucket).
+Input validation everywhere; output serializers strip internal fields (password_hash, token hashes).
+Audit every staff action.
+Structured logs (pino) with request id; no PII in logs.
+Daily encrypted Postgres backups; PITR retained 7 days.
+.env for secrets: DATABASE_URL, JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, GOOGLE_CLIENT_ID/SECRET, S3_*, SMTP_*, REDIS_URL, HIBP_USER_AGENT.
+OWASP ASVS L2 baseline.
+11. Testing
+Unit tests for services and authorization helpers.
+Integration tests per route using a disposable Postgres (testcontainers).
+Auth flow E2E: signup → verify → login → refresh → reset → OAuth.
+Moderation flow E2E: contributor submits → moderator approves → place becomes public, contributions_count increments.
+RLS tests: a contributor cannot read another contributor's pending place.
+12. Frontend integration
+Create src/lib/api.ts (fetch wrapper with auth header + refresh-on-401).
+Add React Query hooks: usePlaces, usePlace, useSubmitPlace, useBookmarks, useToggleBookmark, useSubmissions, useModerate, useUsers, useSetRole, useFilterPresets, useReviews, useReport, useAdminStats.
+Refactor src/store/useApp.ts to keep only UI state (theme, in-progress filter form). Remove all mock arrays.
+Real Auth.tsx: email/password + Google + forgot-password; add /reset-password and /verify-email pages.
+<ProtectedRoute> for /contribute*, <StaffRoute> for /admin*.
+AddPlace.tsx flow: request presigned URL → upload → POST /places.
+Admin pages read from real endpoints; role changes hit /admin/users/:id/roles.
+SEO: dynamic <title>, meta description, OpenGraph, JSON-LD TouristAttraction per place; sitemap from approved places.
+13. Deliverables
+docker-compose.yml (Postgres, Redis, MinIO, Mailhog, API).
+SQL migration files (one per concern) + a single consolidated init for fresh installs.
+Seed script.
+TypeScript API source with OpenAPI spec at /docs.
+Test suite with ≥ 80 % coverage on services and routes.
+README covering local setup, env vars, migrations, deployment.
+Updated frontend with mock store removed and live API wired in.
+14. Acceptance criteria
+A new signup creates a users row, a profiles row, and a viewer role automatically.
+A contributor can submit a place with images; it appears in /admin/submissions as pending.
+A moderator can approve, reject, or request changes; approved places become public and contributions_count increments.
+RLS prevents a contributor from reading another contributor's pending place (verified by test).
+Admin can change a user's role from /admin/users and it takes effect on the next request.
+Full-text search returns ranked results in < 200 ms for 1k places.
+All endpoints return validated JSON with a consistent error envelope.
+No runtime code references src/data/mock.ts.
