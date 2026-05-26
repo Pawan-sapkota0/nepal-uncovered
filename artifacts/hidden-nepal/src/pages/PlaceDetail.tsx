@@ -8,7 +8,7 @@ import {
   Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { places as placesApi } from "@/lib/api";
@@ -176,16 +176,12 @@ const PlaceDetail = () => {
           </section>
 
           {/* Gallery */}
-          <section>
-            <h2 className="font-display text-2xl font-semibold mb-4">Gallery</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {place.images.map((img, i) => (
-                <div key={i} className={cn("overflow-hidden rounded-lg bg-muted", i === 0 && "col-span-2 row-span-2")}>
-                  <img src={img} alt={`${place.title} ${i + 1}`} loading="lazy" className="h-full w-full object-cover hover:scale-105 transition-transform duration-700 aspect-[4/3]" />
-                </div>
-              ))}
-            </div>
-          </section>
+          {place.images.length > 0 && (
+            <section>
+              <h2 className="font-display text-2xl font-semibold mb-4">Gallery</h2>
+              <GalleryStrip images={place.images} title={place.title} />
+            </section>
+          )}
 
           {/* History */}
           <section>
@@ -270,6 +266,64 @@ const PlaceDetail = () => {
         </aside>
       </div>
     </article>
+  );
+};
+
+// ── Gallery strip — continuous auto-scroll right → left ──────────────────
+const GalleryStrip = ({ images, title }: { images: string[]; title: string }) => {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+
+  // We duplicate so the loop is seamless
+  const doubled = [...images, ...images];
+
+  // CSS keyframes are injected once via a <style> tag so we don't need
+  // an external animation library.
+  const SPEED = 40; // seconds for one full loop (lower = faster)
+  const totalWidth = images.length * 320; // px per tile (approx)
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl select-none"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {/* fade edges */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 z-10 bg-gradient-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 z-10 bg-gradient-to-l from-background to-transparent" />
+
+      <style>{`
+        @keyframes gallery-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-${totalWidth}px); }
+        }
+        .gallery-track {
+          animation: gallery-scroll ${SPEED}s linear infinite;
+          will-change: transform;
+        }
+        .gallery-track.paused { animation-play-state: paused; }
+      `}</style>
+
+      <div
+        ref={trackRef}
+        className={cn("flex gap-3 w-max", "gallery-track", paused && "paused")}
+      >
+        {doubled.map((img, i) => (
+          <div
+            key={i}
+            className="relative shrink-0 w-72 h-48 md:w-80 md:h-52 overflow-hidden rounded-lg bg-muted cursor-pointer group"
+            onClick={() => window.open(img, "_blank", "noopener,noreferrer")}
+          >
+            <img
+              src={img}
+              alt={`${title} ${(i % images.length) + 1}`}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
