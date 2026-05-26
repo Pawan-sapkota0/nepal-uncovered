@@ -15,6 +15,8 @@ import About from "./pages/About";
 import Auth from "./pages/Auth";
 import Contribute from "./pages/Contribute";
 import AddPlace from "./pages/AddPlace";
+import Trips from "./pages/Trips";
+import TripDetail from "./pages/TripDetail";
 import AdminLayout from "./pages/admin/AdminLayout";
 import Overview from "./pages/admin/Overview";
 import Submissions from "./pages/admin/Submissions";
@@ -54,6 +56,8 @@ const App = () => (
             <Route path="/about" element={<About />} />
             <Route path="/contribute" element={<Contribute />} />
             <Route path="/contribute/new" element={<AddPlace />} />
+            <Route path="/trips" element={<Trips />} />
+            <Route path="/trips/:id" element={<TripDetail />} />
           </Route>
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<AdminLayout />}>

@@ -10,6 +10,7 @@ import filterPresetsRouter from "./filterPresets";
 import adminRouter from "./admin";
 import storageRouter from "./storage";
 import meRouter from "./me";
+import tripsRouter from "./trips";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(filterPresetsRouter);
 router.use("/admin", adminRouter);
 router.use(storageRouter);
 router.use(meRouter);
+router.use(tripsRouter);
 
 export default router;

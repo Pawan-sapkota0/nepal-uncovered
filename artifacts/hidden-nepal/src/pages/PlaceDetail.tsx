@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import {
   ArrowLeft, Bookmark, MapPin, CalendarDays, DollarSign, Mountain, FileCheck,
-  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2,
+  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2, Route,
 } from "lucide-react";
+import { AddToTripModal } from "@/components/trips/AddToTripModal";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -33,6 +34,7 @@ const PlaceDetail = () => {
   });
 
   const [locating, setLocating] = useState(false);
+  const [tripModalOpen, setTripModalOpen] = useState(false);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [slug]);
 
@@ -154,6 +156,14 @@ const PlaceDetail = () => {
             <Button
               variant="outline"
               size="lg"
+              onClick={() => setTripModalOpen(true)}
+              className="bg-white/10 border-white/30 text-primary-foreground hover:bg-white/20 hover:text-primary-foreground"
+            >
+              <Route className="h-4 w-4" /> Add to trip
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
               onClick={() => {
                 navigator.clipboard?.writeText(window.location.href);
               }}
@@ -265,6 +275,12 @@ const PlaceDetail = () => {
           </Link>
         </aside>
       </div>
+      <AddToTripModal
+        open={tripModalOpen}
+        onClose={() => setTripModalOpen(false)}
+        placeId={place.id}
+        placeName={place.title}
+      />
     </article>
   );
 };

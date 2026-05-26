@@ -1,5 +1,5 @@
 import { Link, NavLink as RRNavLink, useLocation, useNavigate } from "react-router-dom";
-import { Mountain, Menu, Search, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Mountain, Menu, Search, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, ShieldCheck, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -121,6 +121,9 @@ export function Navbar() {
                   <div className="text-xs text-muted-foreground capitalize">{currentUser.roles?.[currentUser.roles.length - 1] ?? "viewer"}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/trips")}>
+                  <Route className="h-4 w-4 mr-2" /> My trips
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/contribute")}>
                   <LayoutDashboard className="h-4 w-4 mr-2" /> My contributions
                 </DropdownMenuItem>
@@ -180,6 +183,7 @@ export function Navbar() {
                 <div className="h-px bg-border my-3" />
                 {currentUser ? (
                   <>
+                    <RRNavLink to="/trips" className="px-3 py-3 rounded-md text-base hover:bg-muted">My trips</RRNavLink>
                     <RRNavLink to="/contribute" className="px-3 py-3 rounded-md text-base hover:bg-muted">My contributions</RRNavLink>
                     <RRNavLink to="/contribute/new" className="px-3 py-3 rounded-md text-base hover:bg-muted">Add a place</RRNavLink>
                     {(currentUser.roles?.includes("admin") || currentUser.roles?.includes("moderator")) && (

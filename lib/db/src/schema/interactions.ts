@@ -52,6 +52,33 @@ export const filterPresetsTable = pgTable("filter_presets", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ── Trip planner ──────────────────────────────────────────────────────────
+export const tripsTable = pgTable("trips", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const tripPlacesTable = pgTable("trip_places", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => tripsTable.id, { onDelete: "cascade" }),
+  placeId: uuid("place_id").notNull().references(() => placesTable.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+  visitDate: text("visit_date"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertTripSchema = createInsertSchema(tripsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTripPlaceSchema = createInsertSchema(tripPlacesTable).omit({ id: true, createdAt: true });
+export type Trip = typeof tripsTable.$inferSelect;
+export type TripPlace = typeof tripPlacesTable.$inferSelect;
+
 export const insertBookmarkSchema = createInsertSchema(bookmarksTable).omit({ id: true, createdAt: true });
 export const insertReviewSchema = createInsertSchema(reviewsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertReportSchema = createInsertSchema(reportsTable).omit({ id: true, createdAt: true, resolved: true });

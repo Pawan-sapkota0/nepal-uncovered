@@ -194,6 +194,43 @@ export const me = {
   submissions: () => request<ApiSubmission[]>("/me/submissions"),
 };
 
+// ──────────────── TRIPS ────────────────
+export interface ApiTrip {
+  id: string; userId: string; title: string;
+  description?: string; startDate?: string; endDate?: string;
+  createdAt: string; updatedAt: string;
+  placeCount?: number;
+}
+
+export interface ApiTripPlace {
+  tripPlace: {
+    id: string; tripId: string; placeId: string;
+    sortOrder: number; notes?: string; visitDate?: string;
+    createdAt: string;
+  };
+  place: ApiPlace;
+}
+
+export interface ApiTripDetail extends ApiTrip {
+  places: ApiTripPlace[];
+}
+
+export const trips = {
+  list: () => request<ApiTrip[]>("/trips"),
+  get: (id: string) => request<ApiTripDetail>(`/trips/${id}`),
+  create: (data: { title: string; description?: string; startDate?: string; endDate?: string }) =>
+    request<ApiTrip>("/trips", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: { title?: string; description?: string; startDate?: string | null; endDate?: string | null }) =>
+    request<ApiTrip>(`/trips/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  remove: (id: string) => request<void>(`/trips/${id}`, { method: "DELETE" }),
+  addPlace: (id: string, data: { placeId: string; notes?: string; visitDate?: string }) =>
+    request<ApiTripPlace["tripPlace"]>(`/trips/${id}/places`, { method: "POST", body: JSON.stringify(data) }),
+  updatePlace: (id: string, itemId: string, data: { notes?: string | null; visitDate?: string | null; sortOrder?: number }) =>
+    request<ApiTripPlace["tripPlace"]>(`/trips/${id}/places/${itemId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  removePlace: (id: string, itemId: string) =>
+    request<void>(`/trips/${id}/places/${itemId}`, { method: "DELETE" }),
+};
+
 // ──────────────── ADMIN ────────────────
 export interface AdminStats {
   totalPlaces: number; pendingSubmissions: number;
