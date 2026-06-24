@@ -16,7 +16,7 @@ router.get("/submissions", async (req, res): Promise<void> => {
   const rows = await db
     .select({
       submission: submissionsTable,
-      place: { id: placesTable.id, slug: placesTable.slug, title: placesTable.title, status: placesTable.status },
+      place: { id: placesTable.id, slug: placesTable.slug, title: placesTable.title, status: placesTable.status, coverImage: placesTable.coverImage, images: placesTable.images },
       submitter: { name: profilesTable.name, email: usersTable.email },
     })
     .from(submissionsTable)

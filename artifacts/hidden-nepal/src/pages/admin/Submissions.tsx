@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Check, X, MessageSquare, MapPin, ExternalLink, Loader2 } from "lucide-react";
+import { Check, X, MessageSquare, MapPin, ExternalLink, Loader2, ImageOff } from "lucide-react";
+import { getImageUrl } from "@/lib/imageUrl";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -77,7 +78,13 @@ const Submissions = () => {
                   <div className="grid gap-4">
                     {items.map(({ submission: sub, place, submitter }) => (
                       <div key={sub.id} className="rounded-xl border border-border bg-card overflow-hidden flex flex-col md:flex-row">
-                        <div className="md:w-56 h-44 md:h-auto shrink-0 bg-muted flex items-center justify-center text-4xl text-muted-foreground">🏔</div>
+                        <div className="md:w-56 h-44 md:h-auto shrink-0 bg-muted overflow-hidden relative flex items-center justify-center">
+                          {place.coverImage ? (
+                            <img src={getImageUrl(place.coverImage)} alt={place.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageOff className="h-8 w-8 text-muted-foreground/40" />
+                          )}
+                        </div>
                         <div className="flex-1 p-5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">

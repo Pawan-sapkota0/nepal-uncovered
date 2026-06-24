@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/store/useApp";
 import { cn } from "@/lib/utils";
 import { Highlight } from "@/components/Highlight";
+import { getImageUrl } from "@/lib/imageUrl";
 
 interface PlaceCardProps {
   place: Place;
@@ -26,7 +27,7 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
       >
         <div className="aspect-[4/5] overflow-hidden">
           <img
-            src={place.coverImage}
+            src={getImageUrl(place.coverImage)}
             alt={place.title}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
@@ -64,7 +65,7 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
     >
       <div className="aspect-[4/3] overflow-hidden bg-muted">
         <img
-          src={place.coverImage}
+          src={getImageUrl(place.coverImage)}
           alt={place.title}
           loading="lazy"
           className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"

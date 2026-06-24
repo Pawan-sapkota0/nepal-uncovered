@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { places as placesApi } from "@/lib/api";
 import { adaptPlace, adaptPlaces } from "@/lib/placeAdapter";
+import { getImageUrl } from "@/lib/imageUrl";
 
 const PlaceDetail = () => {
   const { slug } = useParams();
@@ -104,7 +105,7 @@ const PlaceDetail = () => {
       {/* Hero */}
       <section className="relative h-[78vh] min-h-[520px] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img src={place.coverImage} alt={place.title} className="h-full w-full object-cover animate-slow-zoom" />
+          <img src={getImageUrl(place.coverImage)} alt={place.title} className="h-full w-full object-cover animate-slow-zoom" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/80" />
         </div>
 
@@ -189,7 +190,7 @@ const PlaceDetail = () => {
           {place.images.length > 0 && (
             <section>
               <h2 className="font-display text-2xl font-semibold mb-4">Gallery</h2>
-              <GalleryStrip images={place.images} title={place.title} />
+              <GalleryStrip images={place.images.map(getImageUrl)} title={place.title} />
             </section>
           )}
 

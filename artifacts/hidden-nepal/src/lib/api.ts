@@ -252,7 +252,7 @@ export interface AdminSubmission {
     status: string; feedback?: string;
     submittedAt: string; reviewedAt?: string;
   };
-  place: { id: string; slug: string; title: string; status: string };
+  place: { id: string; slug: string; title: string; status: string; coverImage?: string | null; images?: string[] | null };
   submitter: { name: string; email: string };
 }
 
