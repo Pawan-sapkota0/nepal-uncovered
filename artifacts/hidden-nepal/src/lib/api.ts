@@ -258,6 +258,19 @@ export interface AdminSubmission {
 
 export const admin = {
   stats: () => request<AdminStats>("/admin/stats"),
+  categories: () => request<{ slug: string; name: string; description?: string; icon?: string; sortOrder: number }[]>("/admin/categories"),
+  createCategory: (data: { slug: string; name: string; description?: string; icon?: string; sortOrder?: number }) =>
+    request<any>("/admin/categories", { method: "POST", body: JSON.stringify(data) }),
+  updateCategory: (slug: string, data: { name?: string; description?: string; icon?: string; sortOrder?: number }) =>
+    request<any>(`/admin/categories/${slug}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCategory: (slug: string) => request<void>(`/admin/categories/${slug}`, { method: "DELETE" }),
+  activity: (params?: { limit?: number; offset?: number; action?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    if (params?.action) qs.set("action", params.action);
+    return request<{ data: any[]; total: number }>(`/admin/activity?${qs}`);
+  },
   submissions: (status?: string) => {
     const qs = status ? `?status=${status}` : "";
     return request<AdminSubmission[]>(`/admin/submissions${qs}`);

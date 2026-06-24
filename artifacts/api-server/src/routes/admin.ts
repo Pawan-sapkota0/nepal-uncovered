@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, count, sql } from "drizzle-orm";
-import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, categoriesTable } from "@workspace/db";
+import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, categoriesTable, auditLogTable } from "@workspace/db";
 import { authenticate } from "../middlewares/authenticate";
 import { requireRole, requireMinRole } from "../middlewares/requireRole";
 import { sendApprovedEmail, sendRejectedEmail, sendChangesRequestedEmail } from "../lib/email";
@@ -192,6 +192,73 @@ router.patch("/users/:id/roles", requireRole("admin"), async (req, res): Promise
     await db.insert(userRolesTable).values(roles.map((role) => ({ userId, role: role as any })));
   }
   res.json({ message: "Roles updated" });
+});
+
+// ── Category management ────────────────────────────────────────────────────
+import { z as _z } from "zod/v4";
+
+router.get("/categories", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ slug: categoriesTable.slug, name: categoriesTable.name, description: categoriesTable.description, icon: categoriesTable.icon, sortOrder: categoriesTable.sortOrder })
+    .from(categoriesTable)
+    .orderBy(categoriesTable.sortOrder);
+  res.json(rows);
+});
+
+router.post("/categories", requireRole("admin"), async (req, res): Promise<void> => {
+  const schema = _z.object({ slug: _z.string().min(1), name: _z.string().min(1), description: _z.string().optional(), icon: _z.string().optional(), sortOrder: _z.number().int().default(0) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: { code: "validation" } }); return; }
+  const [cat] = await db.insert(categoriesTable).values(parsed.data).onConflictDoNothing().returning();
+  if (!cat) { res.status(409).json({ error: { code: "conflict", message: "Slug already exists" } }); return; }
+  res.status(201).json(cat);
+});
+
+router.patch("/categories/:slug", requireRole("admin"), async (req, res): Promise<void> => {
+  const slug = String(req.params.slug);
+  const schema = _z.object({ name: _z.string().min(1).optional(), description: _z.string().optional(), icon: _z.string().optional(), sortOrder: _z.number().int().optional() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: { code: "validation" } }); return; }
+  const [cat] = await db.update(categoriesTable).set(parsed.data).where(eq(categoriesTable.slug, slug)).returning();
+  if (!cat) { res.status(404).json({ error: { code: "not_found" } }); return; }
+  res.json(cat);
+});
+
+router.delete("/categories/:slug", requireRole("admin"), async (req, res): Promise<void> => {
+  const slug = String(req.params.slug);
+  await db.delete(categoriesTable).where(eq(categoriesTable.slug, slug));
+  res.status(204).send();
+});
+
+// ── Activity / Audit Log ───────────────────────────────────────────────────
+router.get("/activity", async (req, res): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const offset = Number(req.query.offset) || 0;
+  const action = req.query.action as string | undefined;
+
+  const rows = await db
+    .select({
+      id: auditLogTable.id,
+      action: auditLogTable.action,
+      entity: auditLogTable.entity,
+      entityId: auditLogTable.entityId,
+      meta: auditLogTable.meta,
+      createdAt: auditLogTable.createdAt,
+      actorName: profilesTable.name,
+      actorEmail: usersTable.email,
+    })
+    .from(auditLogTable)
+    .leftJoin(usersTable, eq(auditLogTable.actorId, usersTable.id))
+    .leftJoin(profilesTable, eq(auditLogTable.actorId, profilesTable.userId))
+    .where(action ? eq(auditLogTable.action, action) : undefined)
+    .orderBy(desc(auditLogTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ total }] = await db.select({ total: count() }).from(auditLogTable)
+    .where(action ? eq(auditLogTable.action, action) : undefined);
+
+  res.json({ data: rows, total, limit, offset });
 });
 
 // Reports management

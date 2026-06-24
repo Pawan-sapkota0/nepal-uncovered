@@ -3,14 +3,16 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { admin } from "@/lib/api";
-import { LayoutDashboard, Inbox, MapPin, Users, ShieldCheck, Mountain, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Inbox, MapPin, Users, ShieldCheck, Mountain, ArrowLeft, Tag, ClipboardList, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const adminLinks = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/admin/submissions", label: "Submissions", icon: Inbox },
   { to: "/admin/places", label: "Places", icon: MapPin },
+  { to: "/admin/categories", label: "Categories", icon: Tag },
   { to: "/admin/users", label: "Users", icon: Users },
+  { to: "/admin/activity", label: "Activity Log", icon: ClipboardList },
 ];
 
 const AdminLayout = () => {

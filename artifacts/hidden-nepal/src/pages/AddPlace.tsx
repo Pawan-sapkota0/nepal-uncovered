@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { provinces } from "@/data/mock";
+import { PROVINCES } from "@/lib/constants";
 import type { Difficulty, Province } from "@/types";
 import { ArrowLeft, ImageIcon, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -153,7 +153,7 @@ const AddPlace = () => {
                 <Select value={form.province} onValueChange={(v) => set("province", v as Province)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {provinces.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    {PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>

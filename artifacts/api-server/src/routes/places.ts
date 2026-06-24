@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, sql, desc, asc } from "drizzle-orm";
+import { eq, and, or, ilike, sql, desc, asc, inArray } from "drizzle-orm";
 import { db, placesTable, categoriesTable, profilesTable, placeViewsTable, bookmarksTable } from "@workspace/db";
 import { authenticate, optionalAuthenticate } from "../middlewares/authenticate";
 import { requireMinRole, isStaff } from "../middlewares/requireRole";
@@ -57,12 +57,12 @@ router.get("/places", optionalAuthenticate, async (req, res): Promise<void> => {
 
   // Check bookmarks if authenticated
   let bookmarkedIds: Set<string> = new Set();
-  if (req.user) {
+  if (req.user && data.length > 0) {
     const bmarks = await db.select({ placeId: bookmarksTable.placeId })
       .from(bookmarksTable)
       .where(and(
         eq(bookmarksTable.userId, req.user.sub),
-        sql`${bookmarksTable.placeId} = ANY(${data.map(p => p.id)})`,
+        inArray(bookmarksTable.placeId, data.map(p => p.id)),
       ));
     bookmarkedIds = new Set(bmarks.map(b => b.placeId));
   }

@@ -1,0 +1,50 @@
+Build a complete production-ready Admin Panel and Backend System for Hidden Nepal.
+
+Implement a real backend with PostgreSQL database and REST APIs. Replace all mock/static data and ensure the entire frontend (homepage, explore page, place details page, categories, featured places, contributor dashboard, etc.) fetches data only from the database through APIs.
+
+Admin Panel Requirements:
+
+Secure admin authentication and authorization (RBAC).
+Dashboard with statistics (users, places, submissions, views, categories).
+Full user management (view, search, suspend, activate, delete).
+Full place management (create, edit, approve, reject, feature, unfeature, delete).
+Submission review workflow (Pending → Approved/Rejected).
+Category management (CRUD).
+Site settings management.
+Activity logs and audit trail.
+Media/image management.
+
+Contributor System Requirements:
+
+Authenticated contributors can submit real places.
+Upload multiple images with proper storage.
+Submit all place information (title, description, history, location, coordinates, district, category, travel info, emergency info, etc.).
+Submissions are stored in PostgreSQL with status = Pending.
+Contributors can track submission status.
+Contributors can edit pending submissions.
+
+Database Requirements:
+
+Design normalized PostgreSQL schema.
+Create tables for users, places, place_images, categories, submissions, reviews, settings, activity_logs, and related entities.
+Use UUID primary keys.
+Add proper indexes, foreign keys, and constraints.
+
+API Requirements:
+
+Build scalable REST APIs with validation, error handling, pagination, filtering, searching, sorting, and authentication.
+Separate public APIs and admin APIs.
+Implement file upload APIs for images.
+
+Frontend Integration Requirements:
+
+Remove all hardcoded/mock data.
+Every page must load data from APIs only.
+Homepage, Explore, Search, Filters, Place Details, Categories, Featured Sections, and Contributor Dashboard must use live database data.
+Implement loading states, empty states, and error handling.
+
+Architecture Requirements:
+
+Follow clean architecture and scalable folder structure.
+Use service layers, reusable components, and API abstraction.
+Ensure the system is production-ready, secure, maintainable, and scalable for future growth.

@@ -11,7 +11,7 @@ router.use(authenticate);
 
 // ── List user's trips ──────────────────────────────────────────────────────
 router.get("/trips", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const rows = await db
     .select()
     .from(tripsTable)
@@ -47,14 +47,14 @@ router.post("/trips", async (req, res): Promise<void> => {
   }
   const [trip] = await db
     .insert(tripsTable)
-    .values({ userId: req.user!.id, ...parsed.data })
+    .values({ userId: req.user!.sub, ...parsed.data })
     .returning();
   res.status(201).json(trip);
 });
 
 // ── Get trip (with places) ─────────────────────────────────────────────────
 router.get("/trips/:id", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const [trip] = await db
     .select()
     .from(tripsTable)
@@ -87,7 +87,7 @@ const updateSchema = z.object({
 });
 
 router.patch("/trips/:id", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: { code: "validation", message: "Invalid body" } });
@@ -115,7 +115,7 @@ router.patch("/trips/:id", async (req, res): Promise<void> => {
 
 // ── Delete trip ────────────────────────────────────────────────────────────
 router.delete("/trips/:id", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const [trip] = await db
     .select({ id: tripsTable.id })
     .from(tripsTable)
@@ -138,7 +138,7 @@ const addPlaceSchema = z.object({
 });
 
 router.post("/trips/:id/places", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const [trip] = await db
     .select({ id: tripsTable.id })
     .from(tripsTable)
@@ -177,7 +177,7 @@ const updatePlaceSchema = z.object({
 });
 
 router.patch("/trips/:id/places/:itemId", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const [trip] = await db
     .select({ id: tripsTable.id })
     .from(tripsTable)
@@ -210,7 +210,7 @@ router.patch("/trips/:id/places/:itemId", async (req, res): Promise<void> => {
 
 // ── Remove place from trip ─────────────────────────────────────────────────
 router.delete("/trips/:id/places/:itemId", async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+  const userId = req.user!.sub;
   const [trip] = await db
     .select({ id: tripsTable.id })
     .from(tripsTable)

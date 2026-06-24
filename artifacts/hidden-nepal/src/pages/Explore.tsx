@@ -12,7 +12,7 @@ import { useApp } from "@/store/useApp";
 import { places as placesApi, categories as categoriesApi } from "@/lib/api";
 import { adaptPlaces } from "@/lib/placeAdapter";
 import { useQuery } from "@tanstack/react-query";
-import { districts, provinces } from "@/data/mock";
+import { PROVINCES, DISTRICTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { MapPin, Eye, Loader2 } from "lucide-react";
@@ -211,7 +211,7 @@ const Explore = () => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All provinces</SelectItem>
-                {provinces.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                {PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -222,7 +222,7 @@ const Explore = () => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All districts</SelectItem>
-                {districts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {DISTRICTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

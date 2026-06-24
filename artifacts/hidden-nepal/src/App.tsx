@@ -21,7 +21,9 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import Overview from "./pages/admin/Overview";
 import Submissions from "./pages/admin/Submissions";
 import PlacesAdmin from "./pages/admin/PlacesAdmin";
+import CategoriesAdmin from "./pages/admin/CategoriesAdmin";
 import UsersAdmin from "./pages/admin/UsersAdmin";
+import ActivityLog from "./pages/admin/ActivityLog";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -64,7 +66,9 @@ const App = () => (
             <Route index element={<Overview />} />
             <Route path="submissions" element={<Submissions />} />
             <Route path="places" element={<PlacesAdmin />} />
+            <Route path="categories" element={<CategoriesAdmin />} />
             <Route path="users" element={<UsersAdmin />} />
+            <Route path="activity" element={<ActivityLog />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
