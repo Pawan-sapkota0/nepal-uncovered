@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, or, desc, count, sql, ilike } from "drizzle-orm";
 import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, categoriesTable, auditLogTable } from "@workspace/db";
 import { authenticate } from "../middlewares/authenticate";
 import { requireRole, requireMinRole } from "../middlewares/requireRole";
@@ -141,25 +141,6 @@ router.post("/submissions/:id/request-changes", async (req, res): Promise<void> 
   }
 });
 
-// Places management
-router.patch("/places/:id", requireRole("admin", "moderator"), async (req, res): Promise<void> => {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const { featured, status, title, shortDescription, description } = req.body;
-
-  const updateData: any = {};
-  if (featured != null) updateData.featured = featured;
-  if (status != null) updateData.status = status;
-  if (title != null) updateData.title = title;
-  if (shortDescription != null) updateData.shortDescription = shortDescription;
-  if (description != null) updateData.description = description;
-
-  const [updated] = await db.update(placesTable).set(updateData).where(eq(placesTable.id, id)).returning();
-  if (!updated) {
-    res.status(404).json({ error: { code: "not_found", message: "Place not found" } });
-    return;
-  }
-  res.json(updated);
-});
 
 // Users management (admin only)
 router.get("/users", requireRole("admin"), async (req, res): Promise<void> => {
@@ -271,6 +252,108 @@ router.patch("/reports/:id/resolve", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.update(reportsTable).set({ resolved: true }).where(eq(reportsTable.id, id));
   res.json({ message: "Resolved" });
+});
+
+// ── Admin Places management ───────────────────────────────────────────────────
+
+// GET /admin/places — list all places (all statuses) with optional filter
+router.get("/places", async (req, res): Promise<void> => {
+  const { status, query, limit: limitStr } = req.query as Record<string, string>;
+  const pageSize = Math.min(parseInt(limitStr ?? "200", 10), 200);
+
+  const conditions: any[] = [];
+  if (status && status !== "all") conditions.push(eq(placesTable.status, status as any));
+  if (query) {
+    conditions.push(
+      or(
+        ilike(placesTable.title, `%${query}%`),
+        ilike(placesTable.district, `%${query}%`),
+      )!
+    );
+  }
+
+  const rows = await db
+    .select({
+      place: placesTable,
+      submitterName: profilesTable.name,
+    })
+    .from(placesTable)
+    .leftJoin(profilesTable, eq(placesTable.submittedBy, profilesTable.userId))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(placesTable.createdAt))
+    .limit(pageSize);
+
+  res.json(rows.map((r) => ({ ...r.place, submitterName: r.submitterName })));
+});
+
+// GET /admin/places/:id — get single place for admin editing
+router.get("/places/:id", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [place] = await db.select().from(placesTable).where(eq(placesTable.id, id));
+  if (!place) {
+    res.status(404).json({ error: { code: "not_found", message: "Place not found" } });
+    return;
+  }
+  res.json(place);
+});
+
+// PATCH /admin/places/:id — admin can update any field on any place
+router.patch("/places/:id", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [place] = await db.select({ id: placesTable.id }).from(placesTable).where(eq(placesTable.id, id));
+  if (!place) {
+    res.status(404).json({ error: { code: "not_found", message: "Place not found" } });
+    return;
+  }
+
+  const {
+    title, shortDescription, description, history,
+    categorySlug, district, province, lat, lng,
+    coverImage, images, hidden, featured,
+    bestSeason, difficulty, costEstimate, permits, durationDays,
+    nearbyHospital, emergency, localSupport, status,
+  } = req.body;
+
+  const updateData: Record<string, any> = {};
+  if (title != null) updateData.title = title;
+  if (shortDescription != null) updateData.shortDescription = shortDescription;
+  if (description != null) updateData.description = description;
+  if (history != null) updateData.history = history;
+  if (categorySlug != null) updateData.categorySlug = categorySlug;
+  if (district != null) updateData.district = district;
+  if (province != null) updateData.province = province;
+  if (lat != null) updateData.lat = String(lat);
+  if (lng != null) updateData.lng = String(lng);
+  if (coverImage != null) updateData.coverImage = coverImage;
+  if (images != null) updateData.images = images;
+  if (hidden != null) updateData.hidden = hidden;
+  if (featured != null) updateData.featured = featured;
+  if (bestSeason != null) updateData.bestSeason = bestSeason;
+  if (difficulty != null) updateData.difficulty = difficulty;
+  if (costEstimate != null) updateData.costEstimate = costEstimate;
+  if (permits != null) updateData.permits = permits;
+  if (durationDays != null) updateData.durationDays = Number(durationDays);
+  if (nearbyHospital != null) updateData.nearbyHospital = nearbyHospital;
+  if (emergency != null) updateData.emergency = emergency;
+  if (localSupport != null) updateData.localSupport = localSupport;
+  if (status != null) updateData.status = status;
+
+  const [updated] = await db.update(placesTable).set(updateData).where(eq(placesTable.id, id)).returning();
+  req.log.info({ placeId: id, adminId: req.user!.sub }, "Admin updated place");
+  res.json(updated);
+});
+
+// DELETE /admin/places/:id — hard delete a place (cascades to submissions)
+router.delete("/places/:id", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [place] = await db.select({ id: placesTable.id, title: placesTable.title }).from(placesTable).where(eq(placesTable.id, id));
+  if (!place) {
+    res.status(404).json({ error: { code: "not_found", message: "Place not found" } });
+    return;
+  }
+  await db.delete(placesTable).where(eq(placesTable.id, id));
+  req.log.info({ placeId: id, adminId: req.user!.sub }, "Admin deleted place");
+  res.sendStatus(204);
 });
 
 // Stats

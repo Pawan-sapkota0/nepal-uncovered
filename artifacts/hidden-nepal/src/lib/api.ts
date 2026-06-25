@@ -256,6 +256,10 @@ export interface AdminSubmission {
   submitter: { name: string; email: string };
 }
 
+export interface AdminPlaceRow extends ApiPlace {
+  submitterName?: string | null;
+}
+
 export const admin = {
   stats: () => request<AdminStats>("/admin/stats"),
   categories: () => request<{ slug: string; name: string; description?: string; icon?: string; sortOrder: number }[]>("/admin/categories"),
@@ -284,8 +288,19 @@ export const admin = {
   users: () => request<AdminUser[]>("/admin/users"),
   updateUserRoles: (id: string, roles: string[]) =>
     request<void>(`/admin/users/${id}/roles`, { method: "PATCH", body: JSON.stringify({ roles }) }),
-  updatePlace: (id: string, data: any) =>
+  // Place management
+  listPlaces: (params?: { status?: string; query?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.query) qs.set("query", params.query);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<AdminPlaceRow[]>(`/admin/places${q ? `?${q}` : ""}`);
+  },
+  getPlace: (id: string) => request<ApiPlace>(`/admin/places/${id}`),
+  updatePlace: (id: string, data: Partial<ApiPlace> & { status?: string }) =>
     request<ApiPlace>(`/admin/places/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deletePlace: (id: string) => request<void>(`/admin/places/${id}`, { method: "DELETE" }),
   reports: () => request<any[]>("/admin/reports"),
   resolveReport: (id: string) => request<void>(`/admin/reports/${id}/resolve`, { method: "PATCH" }),
 };
