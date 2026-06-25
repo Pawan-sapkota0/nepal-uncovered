@@ -51,20 +51,6 @@ const Auth = () => {
     }
   };
 
-  const quickLogin = async (role: "contributor" | "admin") => {
-    const demoEmail = role === "admin" ? "admin@hiddennepal.app" : "contributor@hiddennepal.app";
-    setLoading(true);
-    try {
-      await login(demoEmail, "nepal2024!");
-      toast.success(`Signed in as ${role}`);
-      navigate(role === "admin" ? "/admin" : "/contribute");
-    } catch {
-      toast.error("Demo login failed — make sure the API is running and the DB is seeded.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex">
       <div className="hidden lg:flex flex-1 relative overflow-hidden bg-gradient-mountain">
@@ -132,14 +118,6 @@ const Auth = () => {
             </button>
           </div>
 
-          <div className="mt-10 rounded-xl border border-dashed border-border p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Demo shortcuts</p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => quickLogin("contributor")} disabled={loading}>Sign in as contributor</Button>
-              <Button variant="outline" size="sm" onClick={() => quickLogin("admin")} disabled={loading}>Sign in as admin</Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Password for all demo accounts: <code className="bg-muted px-1 rounded">nepal2024!</code></p>
-          </div>
         </div>
       </div>
     </div>
