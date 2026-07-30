@@ -195,9 +195,23 @@ export const me = {
 };
 
 // ──────────────── TRIPS ────────────────
+export type TripType = "trekking" | "adventure" | "cultural" | "family" | "solo" | "road_trip" | "wildlife" | "pilgrimage" | "photography" | "other";
+export type TripStatus = "planning" | "upcoming" | "ongoing" | "completed" | "cancelled";
+export type ActivityCategory = "breakfast" | "morning_activity" | "lunch" | "afternoon_activity" | "snacks" | "dinner" | "accommodation" | "transportation" | "miscellaneous";
+
 export interface ApiTrip {
   id: string; userId: string; title: string;
-  description?: string; startDate?: string; endDate?: string;
+  description?: string | null;
+  startDate?: string | null; endDate?: string | null;
+  tripType?: TripType | null;
+  estimatedBudget?: string | null;
+  numTravelers: number;
+  emergencyContact?: string | null;
+  status: TripStatus;
+  estimatedDays?: number | null;
+  destinations: string[];
+  importantDocuments: { name: string; description?: string }[];
+  notes?: string | null;
   createdAt: string; updatedAt: string;
   placeCount?: number;
 }
@@ -215,12 +229,78 @@ export interface ApiTripDetail extends ApiTrip {
   places: ApiTripPlace[];
 }
 
+export interface ApiTripActivity {
+  id: string; tripDayId: string;
+  category: ActivityCategory;
+  time?: string | null;
+  description?: string | null;
+  location?: string | null;
+  cost?: string | null;
+  sortOrder: number;
+  createdAt: string; updatedAt: string;
+}
+
+export interface ApiTripDay {
+  id: string; tripId: string;
+  dayNumber: number;
+  date?: string | null;
+  wakeUpTime?: string | null;
+  notes?: string | null;
+  createdAt: string; updatedAt: string;
+  activities: ApiTripActivity[];
+}
+
+export interface ApiChecklist {
+  id: string; tripId: string;
+  item: string; isChecked: boolean;
+  category?: string | null;
+  sortOrder: number;
+  createdAt: string; updatedAt: string;
+}
+
+export interface ApiBudgetSummary {
+  estimatedBudget: number;
+  totalPlannedCost: number;
+  budgetRemaining: number;
+  categoryTotals: {
+    accommodation: number;
+    food: number;
+    transportation: number;
+    activities: number;
+    miscellaneous: number;
+  };
+  dayTotals: Record<number, number>;
+}
+
+type TripCreateData = {
+  title: string; description?: string;
+  startDate?: string; endDate?: string;
+  tripType?: TripType;
+  estimatedBudget?: string;
+  numTravelers?: number;
+  emergencyContact?: string;
+  status?: TripStatus;
+  estimatedDays?: number;
+  destinations?: string[];
+  importantDocuments?: { name: string; description?: string }[];
+  notes?: string;
+};
+type TripUpdateData = Partial<TripCreateData & {
+  description: string | null;
+  startDate: string | null; endDate: string | null;
+  tripType: TripType | null;
+  estimatedBudget: string | null;
+  emergencyContact: string | null;
+  estimatedDays: number | null;
+  notes: string | null;
+}>;
+
 export const trips = {
   list: () => request<ApiTrip[]>("/trips"),
   get: (id: string) => request<ApiTripDetail>(`/trips/${id}`),
-  create: (data: { title: string; description?: string; startDate?: string; endDate?: string }) =>
+  create: (data: TripCreateData) =>
     request<ApiTrip>("/trips", { method: "POST", body: JSON.stringify(data) }),
-  update: (id: string, data: { title?: string; description?: string; startDate?: string | null; endDate?: string | null }) =>
+  update: (id: string, data: TripUpdateData) =>
     request<ApiTrip>(`/trips/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   remove: (id: string) => request<void>(`/trips/${id}`, { method: "DELETE" }),
   addPlace: (id: string, data: { placeId: string; notes?: string; visitDate?: string }) =>
@@ -229,6 +309,33 @@ export const trips = {
     request<ApiTripPlace["tripPlace"]>(`/trips/${id}/places/${itemId}`, { method: "PATCH", body: JSON.stringify(data) }),
   removePlace: (id: string, itemId: string) =>
     request<void>(`/trips/${id}/places/${itemId}`, { method: "DELETE" }),
+  // Days
+  getDays: (id: string) => request<ApiTripDay[]>(`/trips/${id}/days`),
+  createDay: (id: string, data: { dayNumber: number; date?: string; wakeUpTime?: string; notes?: string }) =>
+    request<ApiTripDay>(`/trips/${id}/days`, { method: "POST", body: JSON.stringify(data) }),
+  updateDay: (id: string, dayId: string, data: { date?: string | null; wakeUpTime?: string | null; notes?: string | null }) =>
+    request<ApiTripDay>(`/trips/${id}/days/${dayId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteDay: (id: string, dayId: string) =>
+    request<void>(`/trips/${id}/days/${dayId}`, { method: "DELETE" }),
+  // Activities
+  createActivity: (id: string, dayId: string, data: { category: ActivityCategory; time?: string; description?: string; location?: string; cost?: string; sortOrder?: number }) =>
+    request<ApiTripActivity>(`/trips/${id}/days/${dayId}/activities`, { method: "POST", body: JSON.stringify(data) }),
+  updateActivity: (id: string, dayId: string, activityId: string, data: Partial<{ category: ActivityCategory; time: string | null; description: string | null; location: string | null; cost: string | null; sortOrder: number }>) =>
+    request<ApiTripActivity>(`/trips/${id}/days/${dayId}/activities/${activityId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteActivity: (id: string, dayId: string, activityId: string) =>
+    request<void>(`/trips/${id}/days/${dayId}/activities/${activityId}`, { method: "DELETE" }),
+  // Budget
+  getBudget: (id: string) => request<ApiBudgetSummary>(`/trips/${id}/budget`),
+  // Checklist
+  getChecklist: (id: string) => request<ApiChecklist[]>(`/trips/${id}/checklist`),
+  createChecklistItem: (id: string, data: { item: string; isChecked?: boolean; category?: string; sortOrder?: number }) =>
+    request<ApiChecklist>(`/trips/${id}/checklist`, { method: "POST", body: JSON.stringify(data) }),
+  updateChecklistItem: (id: string, itemId: string, data: Partial<{ item: string; isChecked: boolean; category: string | null; sortOrder: number }>) =>
+    request<ApiChecklist>(`/trips/${id}/checklist/${itemId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteChecklistItem: (id: string, itemId: string) =>
+    request<void>(`/trips/${id}/checklist/${itemId}`, { method: "DELETE" }),
+  bulkReplaceChecklist: (id: string, items: { item: string; isChecked?: boolean; category?: string }[]) =>
+    request<ApiChecklist[]>(`/trips/${id}/checklist`, { method: "PUT", body: JSON.stringify(items) }),
 };
 
 // ──────────────── ADMIN ────────────────

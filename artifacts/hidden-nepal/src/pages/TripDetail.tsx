@@ -1,413 +1,404 @@
-import { useNavigate, useParams, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { trips as tripsApi, type ApiTripPlace } from "@/lib/api";
-import { useAuth } from "@/store/useAuth";
-import { adaptPlace } from "@/lib/placeAdapter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  ArrowLeft, CalendarDays, MapPin, Pencil, Trash2, Loader2,
-  GripVertical, StickyNote, ExternalLink, Route,
-} from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/store/useAuth";
+import { trips, type TripStatus } from "@/lib/api";
+import { TripFormDialog } from "@/components/trips/TripFormDialog";
+import { DayCard } from "@/components/trips/DayCard";
+import { BudgetDashboard } from "@/components/trips/BudgetDashboard";
+import { ChecklistTab } from "@/components/trips/ChecklistTab";
+import {
+  ArrowLeft,
+  Pencil,
+  Calendar,
+  Users,
+  MapPin,
+  FileText,
+  Phone,
+  Plus,
+  Trash2,
+  Map,
+} from "lucide-react";
 
-const TripDetail = () => {
+const statusColors: Record<TripStatus, string> = {
+  planning: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  ongoing: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+};
+
+export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const qc = useQueryClient();
-
-  const [editingTrip, setEditingTrip] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", description: "", startDate: "", endDate: "" });
-  const [editingItem, setEditingItem] = useState<ApiTripPlace | null>(null);
-  const [itemNotes, setItemNotes] = useState("");
-  const [itemDate, setItemDate] = useState("");
+  const user = useAuth((s) => s.user);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const { data: trip, isLoading } = useQuery({
     queryKey: ["trip", id],
-    queryFn: () => tripsApi.get(id!),
+    queryFn: () => trips.get(id!),
     enabled: !!id && !!user,
   });
 
-  const updateTripMutation = useMutation({
-    mutationFn: () =>
-      tripsApi.update(id!, {
-        title: editForm.title,
-        description: editForm.description || undefined,
-        startDate: editForm.startDate || null,
-        endDate: editForm.endDate || null,
-      }),
+  const { data: days } = useQuery({
+    queryKey: ["trip-days", id],
+    queryFn: () => trips.getDays(id!),
+    enabled: !!id && !!user,
+  });
+
+  const { data: budget } = useQuery({
+    queryKey: ["trip-budget", id],
+    queryFn: () => trips.getBudget(id!),
+    enabled: !!id && !!user,
+  });
+
+  const deleteTripMutation = useMutation({
+    mutationFn: () => trips.remove(id!),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trip", id] });
-      qc.invalidateQueries({ queryKey: ["trips"] });
-      setEditingTrip(false);
+      toast({ title: "Trip deleted" });
+      navigate("/trips");
     },
-    onError: () => toast({ title: "Failed to update trip", variant: "destructive" }),
+  });
+
+  const createDayMutation = useMutation({
+    mutationFn: (dayNumber: number) => trips.createDay(id!, { dayNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip-days", id] });
+      toast({ title: "Day added" });
+    },
   });
 
   const removePlaceMutation = useMutation({
-    mutationFn: (itemId: string) => tripsApi.removePlace(id!, itemId),
+    mutationFn: (itemId: string) => trips.removePlace(id!, itemId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trip", id] });
-      qc.invalidateQueries({ queryKey: ["trips"] });
+      queryClient.invalidateQueries({ queryKey: ["trip", id] });
+      toast({ title: "Place removed" });
     },
-    onError: () => toast({ title: "Failed to remove place", variant: "destructive" }),
   });
 
-  const updateItemMutation = useMutation({
-    mutationFn: (itemId: string) =>
-      tripsApi.updatePlace(id!, itemId, {
-        notes: itemNotes || null,
-        visitDate: itemDate || null,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trip", id] });
-      setEditingItem(null);
-    },
-    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-  });
+  const handleGenerateDays = () => {
+    if (!trip?.startDate || !trip?.endDate) {
+      toast({ title: "Set start and end dates first", variant: "destructive" });
+      return;
+    }
+    const start = new Date(trip.startDate);
+    const end = new Date(trip.endDate);
+    const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (dayCount <= 0 || dayCount > 100) {
+      toast({ title: "Invalid date range", variant: "destructive" });
+      return;
+    }
+
+    for (let i = 1; i <= dayCount; i++) {
+      createDayMutation.mutate(i);
+    }
+  };
 
   if (!user) {
     return (
-      <div className="container pt-32 pb-20 text-center">
-        <Button onClick={() => navigate("/auth")}>Sign in to view trips</Button>
+      <div className="container max-w-6xl mx-auto px-4 py-16 text-center">
+        <p className="text-muted-foreground mb-6">Sign in to view trip details</p>
+        <Button asChild>
+          <Link to="/auth">Sign In</Link>
+        </Button>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="container pt-32 pb-20 text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+      <div className="container max-w-6xl mx-auto px-4 py-8">
+        <Skeleton className="h-10 w-64 mb-6" />
+        <Card className="p-6">
+          <Skeleton className="h-8 w-1/2 mb-4" />
+          <Skeleton className="h-4 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-2/3" />
+        </Card>
       </div>
     );
   }
 
   if (!trip) {
     return (
-      <div className="container pt-32 pb-20 text-center">
-        <p className="font-display text-2xl mb-4">Trip not found.</p>
-        <Button onClick={() => navigate("/trips")}>Back to trips</Button>
+      <div className="container max-w-6xl mx-auto px-4 py-16 text-center">
+        <h1 className="font-display text-3xl mb-4">Trip not found</h1>
+        <Button asChild>
+          <Link to="/trips">Back to Trips</Link>
+        </Button>
       </div>
     );
   }
 
-  const openEditTrip = () => {
-    setEditForm({
-      title: trip.title,
-      description: trip.description ?? "",
-      startDate: trip.startDate ?? "",
-      endDate: trip.endDate ?? "",
-    });
-    setEditingTrip(true);
-  };
-
-  const openEditItem = (item: ApiTripPlace) => {
-    setEditingItem(item);
-    setItemNotes(item.tripPlace.notes ?? "");
-    setItemDate(item.tripPlace.visitDate ?? "");
-  };
-
-  const totalDays = trip.places.reduce(
-    (sum, p) => sum + (p.place.durationDays ?? 1), 0
-  );
-
-  const dateRange = [trip.startDate, trip.endDate].filter(Boolean).join(" → ");
+  const totalDays = trip.estimatedDays || 0;
+  const totalPlaces = trip.places.length;
+  const budgetRemaining = budget?.budgetRemaining || 0;
+  const totalPlannedCost = budget?.totalPlannedCost || 0;
 
   return (
-    <div className="container pt-28 pb-24">
-      {/* Back */}
-      <button
-        onClick={() => navigate("/trips")}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" /> All trips
-      </button>
-
-      {/* Trip header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-10">
-        <div className="min-w-0">
-          <div className="text-xs uppercase tracking-[0.2em] text-accent font-semibold mb-2">
-            {trip.places.length} {trip.places.length === 1 ? "destination" : "destinations"}
-            {totalDays > 0 && ` · ${totalDays} day${totalDays !== 1 ? "s" : ""} total`}
-          </div>
-          <h1 className="font-display text-4xl md:text-5xl font-semibold tracking-tight mb-3">
-            {trip.title}
-          </h1>
-          {trip.description && (
-            <p className="text-lg text-muted-foreground max-w-2xl">{trip.description}</p>
-          )}
-          {dateRange && (
-            <div className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <CalendarDays className="h-4 w-4" />
-              {dateRange}
-            </div>
-          )}
-        </div>
-        <Button variant="outline" onClick={openEditTrip} className="gap-2 shrink-0">
-          <Pencil className="h-4 w-4" /> Edit trip
+    <div className="container max-w-7xl mx-auto px-4 py-8 space-y-6">
+      <div>
+        <Button variant="ghost" asChild className="mb-4 gap-2">
+          <Link to="/trips">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Trips
+          </Link>
         </Button>
-      </div>
 
-      {/* Summary bar */}
-      {trip.places.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-12">
-          <StatChip label="Destinations" value={String(trip.places.length)} />
-          <StatChip label="Total days" value={`${totalDays}`} />
-          <StatChip
-            label="Provinces"
-            value={String(new Set(trip.places.map((p) => p.place.province)).size)}
-          />
-          <StatChip
-            label="Hidden gems"
-            value={String(trip.places.filter((p) => p.place.hidden).length)}
-          />
-        </div>
-      )}
-
-      {/* Place list */}
-      {trip.places.length === 0 ? (
-        <EmptyItinerary />
-      ) : (
-        <div className="space-y-5">
-          {trip.places.map((item, idx) => (
-            <PlaceRow
-              key={item.tripPlace.id}
-              item={item}
-              index={idx}
-              onEdit={() => openEditItem(item)}
-              onRemove={() => removePlaceMutation.mutate(item.tripPlace.id)}
-              removing={removePlaceMutation.isPending}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Explore CTA */}
-      <div className="mt-12 rounded-2xl bg-gradient-warm border border-border p-8 text-center">
-        <Route className="h-8 w-8 mx-auto mb-3 text-accent" />
-        <h3 className="font-display text-xl mb-2">Add more destinations</h3>
-        <p className="text-muted-foreground mb-5">
-          Browse the atlas and save places directly to this trip from any place detail page.
-        </p>
-        <Button asChild>
-          <Link to="/explore">Explore places</Link>
-        </Button>
-      </div>
-
-      {/* Edit trip dialog */}
-      <Dialog open={editingTrip} onOpenChange={setEditingTrip}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl">Edit trip</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Trip name *</label>
-              <Input
-                value={editForm.title}
-                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Description</label>
-              <Textarea
-                rows={3}
-                value={editForm.description}
-                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Start date</label>
-                <Input
-                  type="date"
-                  value={editForm.startDate}
-                  onChange={(e) => setEditForm((f) => ({ ...f, startDate: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">End date</label>
-                <Input
-                  type="date"
-                  value={editForm.endDate}
-                  onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTrip(false)}>Cancel</Button>
-            <Button
-              disabled={!editForm.title.trim() || updateTripMutation.isPending}
-              onClick={() => updateTripMutation.mutate()}
-            >
-              {updateTripMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit item dialog */}
-      <Dialog open={!!editingItem} onOpenChange={(o) => !o && setEditingItem(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl">
-              {editingItem?.place.title}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Planned visit date</label>
-              <Input
-                type="date"
-                value={itemDate}
-                onChange={(e) => setItemDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Notes</label>
-              <Textarea
-                rows={4}
-                placeholder="Things to do, who's coming, packing list…"
-                value={itemNotes}
-                onChange={(e) => setItemNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
-            <Button
-              onClick={() => updateItemMutation.mutate(editingItem!.tripPlace.id)}
-              disabled={updateItemMutation.isPending}
-            >
-              {updateItemMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-const PlaceRow = ({
-  item, index, onEdit, onRemove, removing,
-}: {
-  item: ApiTripPlace; index: number; onEdit: () => void; onRemove: () => void; removing: boolean;
-}) => {
-  const place = item.place;
-  const tp = item.tripPlace;
-
-  return (
-    <div className="group flex gap-4 rounded-2xl border border-border bg-card shadow-soft overflow-hidden hover:border-primary/30 transition-colors">
-      {/* Step number */}
-      <div className="hidden sm:flex w-14 shrink-0 items-center justify-center bg-muted text-lg font-display font-semibold text-muted-foreground">
-        {index + 1}
-      </div>
-
-      {/* Cover image */}
-      {place.coverImage && (
-        <div className="w-28 sm:w-36 shrink-0 overflow-hidden">
-          <img
-            src={place.coverImage}
-            alt={place.title}
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
-
-      {/* Body */}
-      <div className="flex-1 p-4 min-w-0">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              {place.hidden && (
-                <Badge className="bg-saffron text-saffron-foreground border-0 text-[10px] px-1.5 py-0">
-                  Hidden gem
-                </Badge>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="font-display text-4xl mb-3">{trip.title}</h1>
+            <div className="flex gap-2 flex-wrap">
+              <Badge className={statusColors[trip.status]}>{trip.status}</Badge>
+              {trip.tripType && (
+                <Badge variant="outline">{trip.tripType.replace("_", " ")}</Badge>
               )}
-              <span className="text-xs text-muted-foreground capitalize">{place.categorySlug}</span>
             </div>
-            <h3 className="font-display text-lg font-semibold leading-snug">{place.title}</h3>
           </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={onEdit}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="Edit notes / date"
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(true)} className="gap-2">
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              className="hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => {
+                if (confirm("Delete this trip? This action cannot be undone.")) {
+                  deleteTripMutation.mutate();
+                }
+              }}
             >
-              <StickyNote className="h-4 w-4" />
-            </button>
-            <Link
-              to={`/place/${place.slug}`}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="View place"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Link>
-            <button
-              onClick={onRemove}
-              disabled={removing}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              title="Remove from trip"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
-
-        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2 flex-wrap">
-          <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {place.district}, {place.province}
-          </span>
-          {place.durationDays && (
-            <span className="inline-flex items-center gap-1">
-              <CalendarDays className="h-3 w-3" />
-              {place.durationDays}d suggested
-            </span>
-          )}
-          {tp.visitDate && (
-            <span className="inline-flex items-center gap-1 text-accent font-medium">
-              <CalendarDays className="h-3 w-3" />
-              Visiting {tp.visitDate}
-            </span>
-          )}
-        </div>
-
-        {tp.notes && (
-          <p className="text-sm text-muted-foreground bg-muted/60 rounded-lg px-3 py-2 mt-2 line-clamp-2">
-            {tp.notes}
-          </p>
-        )}
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="itinerary">Itinerary</TabsTrigger>
+          <TabsTrigger value="budget">Budget</TabsTrigger>
+          <TabsTrigger value="checklist">Checklist</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Days</h3>
+              <p className="text-3xl font-display">{totalDays || "—"}</p>
+            </Card>
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Destinations</h3>
+              <p className="text-3xl font-display">{trip.destinations.length}</p>
+            </Card>
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Travelers</h3>
+              <p className="text-3xl font-display">{trip.numTravelers}</p>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Estimated Budget</h3>
+              <p className="text-2xl font-display">
+                {trip.estimatedBudget ? `NPR ${Number(trip.estimatedBudget).toLocaleString()}` : "—"}
+              </p>
+            </Card>
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Planned Cost</h3>
+              <p className="text-2xl font-display">NPR {totalPlannedCost.toLocaleString()}</p>
+            </Card>
+            <Card className={`p-6 ${budgetRemaining < 0 ? "bg-destructive/5 border-destructive/20" : "bg-success/5 border-success/20"}`}>
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">Budget Remaining</h3>
+              <p className={`text-2xl font-display ${budgetRemaining < 0 ? "text-destructive" : "text-success"}`}>
+                NPR {Math.abs(budgetRemaining).toLocaleString()}
+                {budgetRemaining < 0 && " over"}
+              </p>
+            </Card>
+          </div>
+
+          <Card className="p-6">
+            <h3 className="font-display text-xl mb-4">Trip Details</h3>
+            <div className="space-y-4">
+              {trip.description && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
+                  <p className="text-sm">{trip.description}</p>
+                </div>
+              )}
+              {trip.startDate && trip.endDate && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Dates
+                  </h4>
+                  <p className="text-sm">
+                    {new Date(trip.startDate).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}{" "}
+                    -{" "}
+                    {new Date(trip.endDate).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+              )}
+              {trip.emergencyContact && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    Emergency Contact
+                  </h4>
+                  <p className="text-sm">{trip.emergencyContact}</p>
+                </div>
+              )}
+              {trip.notes && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Notes
+                  </h4>
+                  <p className="text-sm whitespace-pre-wrap">{trip.notes}</p>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {trip.places.length > 0 && (
+            <Card className="p-6">
+              <h3 className="font-display text-xl mb-4">Favorite Places</h3>
+              <div className="space-y-3">
+                {trip.places.map(({ tripPlace, place }) => (
+                  <div key={tripPlace.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border">
+                    <div className="flex-1">
+                      <h4 className="font-medium mb-1">
+                        <Link to={`/place/${place.slug}`} className="hover:text-primary">
+                          {place.title}
+                        </Link>
+                      </h4>
+                      {tripPlace.visitDate && (
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Visit: {new Date(tripPlace.visitDate).toLocaleDateString()}
+                        </p>
+                      )}
+                      {tripPlace.notes && <p className="text-sm text-muted-foreground">{tripPlace.notes}</p>}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-8 h-8 hover:text-destructive"
+                      onClick={() => removePlaceMutation.mutate(tripPlace.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {trip.importantDocuments.length > 0 && (
+            <Card className="p-6">
+              <h3 className="font-display text-xl mb-4">Important Documents</h3>
+              <div className="space-y-2">
+                {trip.importantDocuments.map((doc, i) => (
+                  <div key={i} className="p-3 rounded-lg border">
+                    <h4 className="font-medium">{doc.name}</h4>
+                    {doc.description && <p className="text-sm text-muted-foreground">{doc.description}</p>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="itinerary" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-2xl mb-1">Day-by-Day Itinerary</h2>
+              <p className="text-sm text-muted-foreground">Plan activities, meals, and accommodations</p>
+            </div>
+            {trip.startDate && trip.endDate && (!days || days.length === 0) && (
+              <Button onClick={handleGenerateDays} variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Generate {totalDays} Days
+              </Button>
+            )}
+          </div>
+
+          {!days || days.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Map className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="font-display text-xl mb-2">No days planned yet</h3>
+              <p className="text-muted-foreground mb-6">
+                {trip.startDate && trip.endDate
+                  ? "Generate days from your trip dates or add them manually"
+                  : "Set trip dates first, then generate your itinerary"}
+              </p>
+              <div className="flex gap-3 justify-center">
+                {trip.startDate && trip.endDate && (
+                  <Button onClick={handleGenerateDays} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Generate {totalDays} Days
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => createDayMutation.mutate((days?.length || 0) + 1)}
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Day Manually
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {days
+                  .sort((a, b) => a.dayNumber - b.dayNumber)
+                  .map((day) => (
+                    <DayCard key={day.id} tripId={id!} day={day} />
+                  ))}
+              </div>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => createDayMutation.mutate((days?.length || 0) + 1)}
+              >
+                <Plus className="w-4 h-4" />
+                Add Another Day
+              </Button>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="budget">
+          <BudgetDashboard tripId={id!} />
+        </TabsContent>
+
+        <TabsContent value="checklist">
+          <ChecklistTab tripId={id!} />
+        </TabsContent>
+      </Tabs>
+
+      <TripFormDialog open={editOpen} onOpenChange={setEditOpen} trip={trip} />
     </div>
   );
-};
-
-const StatChip = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl border border-border bg-card px-4 py-3 text-center">
-    <div className="font-display text-2xl font-semibold">{value}</div>
-    <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
-  </div>
-);
-
-const EmptyItinerary = () => (
-  <div className="text-center py-20 border border-dashed border-border rounded-2xl">
-    <MapPin className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-    <h3 className="font-display text-xl mb-2">No places yet</h3>
-    <p className="text-muted-foreground max-w-sm mx-auto">
-      Browse the atlas and use the "Add to trip" button on any place to add it here.
-    </p>
-  </div>
-);
-
-export default TripDetail;
+}

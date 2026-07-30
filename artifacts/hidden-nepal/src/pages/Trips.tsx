@@ -1,235 +1,229 @@
-import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { trips as tripsApi, type ApiTrip } from "@/lib/api";
-import { useAuth } from "@/store/useAuth";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/hooks/use-toast";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  MapPin, CalendarDays, Plus, Trash2, Loader2, Route, ArrowRight, PenLine,
-} from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/store/useAuth";
+import { trips, type ApiTrip, type TripStatus, type TripType } from "@/lib/api";
+import { TripFormDialog } from "@/components/trips/TripFormDialog";
+import {
+  Plus,
+  Calendar,
+  MapPin,
+  Users,
+  Wallet,
+  Mountain,
+  Compass,
+  Users as Family,
+  User,
+  Car,
+  Camera,
+  Sparkles,
+  Map,
+  Church,
+  Bird,
+} from "lucide-react";
 
-const Trips = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", startDate: "", endDate: "" });
+const tripTypeIcons: Record<TripType, any> = {
+  trekking: Mountain,
+  adventure: Compass,
+  cultural: Sparkles,
+  family: Family,
+  solo: User,
+  road_trip: Car,
+  wildlife: Bird,
+  pilgrimage: Church,
+  photography: Camera,
+  other: Map,
+};
 
-  const { data: tripList, isLoading } = useQuery({
+const statusColors: Record<TripStatus, string> = {
+  planning: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  ongoing: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+};
+
+export default function Trips() {
+  const user = useAuth((s) => s.user);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  const { data: tripsList, isLoading } = useQuery({
     queryKey: ["trips"],
-    queryFn: tripsApi.list,
+    queryFn: () => trips.list(),
     enabled: !!user,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      tripsApi.create({
-        title: form.title,
-        description: form.description || undefined,
-        startDate: form.startDate || undefined,
-        endDate: form.endDate || undefined,
-      }),
-    onSuccess: (trip) => {
-      qc.invalidateQueries({ queryKey: ["trips"] });
-      setCreating(false);
-      setForm({ title: "", description: "", startDate: "", endDate: "" });
-      navigate(`/trips/${trip.id}`);
-    },
-    onError: () => toast({ title: "Failed to create trip", variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => tripsApi.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trips"] });
-      toast({ title: "Trip deleted" });
-    },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   if (!user) {
     return (
-      <div className="container pt-32 pb-20 text-center">
-        <Route className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h2 className="font-display text-2xl mb-2">Sign in to plan trips</h2>
-        <p className="text-muted-foreground mb-6">Create itineraries, add places and plan your Nepal adventure.</p>
-        <Button onClick={() => navigate("/auth")}>Sign in</Button>
+      <div className="container max-w-6xl mx-auto px-4 py-16 text-center">
+        <h1 className="font-display text-4xl mb-4">Trip Planner</h1>
+        <p className="text-muted-foreground mb-6">Sign in to start planning your Nepal adventures</p>
+        <Button asChild>
+          <Link to="/auth">Sign In</Link>
+        </Button>
       </div>
     );
   }
 
+  const filteredTrips = tripsList?.filter((trip) => {
+    if (statusFilter !== "all" && trip.status !== statusFilter) return false;
+    if (typeFilter !== "all" && trip.tripType !== typeFilter) return false;
+    return true;
+  });
+
   return (
-    <div className="container pt-28 pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-10 gap-4 flex-wrap">
+    <div className="container max-w-7xl mx-auto px-4 py-8 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-accent font-semibold mb-1">My plans</div>
-          <h1 className="font-display text-4xl font-semibold">Travel itineraries</h1>
-          <p className="text-muted-foreground mt-2">
-            Organise places into trips with notes and travel dates.
-          </p>
+          <h1 className="font-display text-4xl mb-2">My Trips</h1>
+          <p className="text-muted-foreground">Plan and manage your Nepal adventures</p>
         </div>
-        <Button onClick={() => setCreating(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> New trip
+        <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2">
+          <Plus className="w-5 h-5" />
+          New Trip
         </Button>
       </div>
 
-      {/* Content */}
+      <div className="flex gap-4">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="planning">Planning</SelectItem>
+            <SelectItem value="upcoming">Upcoming</SelectItem>
+            <SelectItem value="ongoing">Ongoing</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="trekking">Trekking</SelectItem>
+            <SelectItem value="adventure">Adventure</SelectItem>
+            <SelectItem value="cultural">Cultural</SelectItem>
+            <SelectItem value="family">Family</SelectItem>
+            <SelectItem value="solo">Solo</SelectItem>
+            <SelectItem value="road_trip">Road Trip</SelectItem>
+            <SelectItem value="wildlife">Wildlife</SelectItem>
+            <SelectItem value="pilgrimage">Pilgrimage</SelectItem>
+            <SelectItem value="photography">Photography</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-        </div>
-      ) : !tripList?.length ? (
-        <EmptyState onNew={() => setCreating(true)} />
-      ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {tripList.map((trip) => (
-            <TripCard
-              key={trip.id}
-              trip={trip}
-              onOpen={() => navigate(`/trips/${trip.id}`)}
-              onDelete={() => deleteMutation.mutate(trip.id)}
-              deleting={deleteMutation.isPending}
-            />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="p-6">
+              <Skeleton className="h-6 w-3/4 mb-3" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-2/3" />
+            </Card>
           ))}
+        </div>
+      ) : !filteredTrips || filteredTrips.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Mountain className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h3 className="font-display text-xl mb-2">
+            {statusFilter === "all" && typeFilter === "all" ? "No trips yet" : "No trips match your filters"}
+          </h3>
+          <p className="text-muted-foreground mb-6">
+            {statusFilter === "all" && typeFilter === "all"
+              ? "Start planning your first adventure in Nepal"
+              : "Try adjusting your filters"}
+          </p>
+          {statusFilter === "all" && typeFilter === "all" && (
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Create Your First Trip
+            </Button>
+          )}
+        </Card>
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {filteredTrips.map((trip) => {
+            const TypeIcon = trip.tripType ? tripTypeIcons[trip.tripType] : Map;
+            return (
+              <Link key={trip.id} to={`/trips/${trip.id}`}>
+                <Card className="p-5 hover-lift cursor-pointer transition-all h-full">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-display text-xl mb-2 line-clamp-1">{trip.title}</h3>
+                      <div className="flex gap-2 flex-wrap">
+                        <Badge className={statusColors[trip.status]}>{trip.status}</Badge>
+                        {trip.tripType && (
+                          <Badge variant="outline" className="gap-1">
+                            <TypeIcon className="w-3 h-3" />
+                            {trip.tripType.replace("_", " ")}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {trip.description && (
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{trip.description}</p>
+                  )}
+
+                  <div className="space-y-2 text-sm">
+                    {trip.startDate && trip.endDate && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {new Date(trip.startDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}{" "}
+                          -{" "}
+                          {new Date(trip.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    )}
+                    {trip.destinations.length > 0 && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="w-4 h-4" />
+                        <span className="line-clamp-1">{trip.destinations.join(", ")}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Users className="w-4 h-4" />
+                      <span>{trip.numTravelers} traveler{trip.numTravelers !== 1 ? "s" : ""}</span>
+                    </div>
+                    {trip.estimatedBudget && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Wallet className="w-4 h-4" />
+                        <span>NPR {Number(trip.estimatedBudget).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {trip.placeCount !== undefined && trip.placeCount > 0 && (
+                    <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
+                      {trip.placeCount} place{trip.placeCount !== 1 ? "s" : ""} added
+                    </div>
+                  )}
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
 
-      {/* Create dialog */}
-      <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl">Create a new trip</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Trip name *</label>
-              <Input
-                placeholder="e.g. Annapurna Circuit 2025"
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Description</label>
-              <Textarea
-                placeholder="What's the plan?"
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Start date</label>
-                <Input
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">End date</label>
-                <Input
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button
-              disabled={!form.title.trim() || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create trip"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TripFormDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
-};
-
-const TripCard = ({
-  trip, onOpen, onDelete, deleting,
-}: {
-  trip: ApiTrip; onOpen: () => void; onDelete: () => void; deleting: boolean;
-}) => {
-  const hasDate = trip.startDate || trip.endDate;
-  const dateStr = [trip.startDate, trip.endDate].filter(Boolean).join(" → ");
-
-  return (
-    <div
-      className="group relative rounded-2xl border border-border bg-card shadow-soft hover-lift overflow-hidden cursor-pointer"
-      onClick={onOpen}
-    >
-      {/* Color band */}
-      <div className="h-2 bg-gradient-mountain" />
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <h3 className="font-display text-lg font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-            {trip.title}
-          </h3>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            disabled={deleting}
-            className="shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-            aria-label="Delete trip"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-
-        {trip.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{trip.description}</p>
-        )}
-
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" />
-            <span>{trip.placeCount ?? 0} {trip.placeCount === 1 ? "place" : "places"}</span>
-          </span>
-          {hasDate && (
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" />
-              <span>{dateStr}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="mt-4 flex items-center gap-1 text-sm text-primary font-medium">
-          View itinerary <ArrowRight className="h-4 w-4" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const EmptyState = ({ onNew }: { onNew: () => void }) => (
-  <div className="flex flex-col items-center justify-center py-24 text-center">
-    <div className="h-20 w-20 rounded-2xl bg-muted grid place-items-center mb-6">
-      <Route className="h-10 w-10 text-muted-foreground" />
-    </div>
-    <h3 className="font-display text-2xl mb-2">No trips yet</h3>
-    <p className="text-muted-foreground max-w-sm mb-8">
-      Create your first itinerary, then save places to it as you browse the atlas.
-    </p>
-    <Button onClick={onNew} className="gap-2">
-      <Plus className="h-4 w-4" /> Plan your first trip
-    </Button>
-  </div>
-);
-
-export default Trips;
+}
