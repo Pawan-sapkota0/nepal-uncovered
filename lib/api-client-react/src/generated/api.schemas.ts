@@ -24,6 +24,16 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export interface UploadConfirmPayload {
+  /** The /objects/... path returned by request-url */
+  objectPath: string;
+}
+
+export interface UploadConfirmAck {
+  /** Normalized /objects/... path with ACL now set */
+  objectPath: string;
+}
+
 export interface ErrorEnvelope {
   error: string;
 }

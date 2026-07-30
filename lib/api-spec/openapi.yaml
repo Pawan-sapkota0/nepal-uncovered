@@ -84,6 +84,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/uploads/confirm:
+    post:
+      tags: [Storage]
+      operationId: confirmUpload
+      summary: Confirm a direct-to-GCS upload and set its ACL
+      description: |
+        Call after a presigned PUT upload completes. Sets the ACL policy on the
+        uploaded object (owner = current user, visibility = private) so it can
+        be served via GET /storage/objects/*.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadConfirmPayload'
+      responses:
+        '200':
+          description: ACL set successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadConfirmAck'
+        '400':
+          description: Missing or invalid objectPath.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Object not found — upload may not have completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to confirm upload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /storage/objects/{objectPath}:
     get:
       tags: [Storage]
@@ -142,6 +182,20 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
+    UploadConfirmPayload:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          description: The /objects/... path returned by request-url
+    UploadConfirmAck:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          description: Normalized /objects/... path with ACL now set
     ErrorEnvelope:
       type: object
       required: [error]

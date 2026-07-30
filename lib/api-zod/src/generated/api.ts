@@ -59,6 +59,22 @@ export const GetPublicObjectParams = zod.object({
 
 
 /**
+ * Call after a presigned PUT upload completes. Sets the ACL policy on the
+uploaded object (owner = current user, visibility = private) so it can
+be served via GET /storage/objects/*.
+
+ * @summary Confirm a direct-to-GCS upload and set its ACL
+ */
+export const ConfirmUploadBody = zod.object({
+  "objectPath": zod.string().describe('The \/objects\/... path returned by request-url')
+})
+
+export const ConfirmUploadResponse = zod.object({
+  "objectPath": zod.string().describe('Normalized \/objects\/... path with ACL now set')
+})
+
+
+/**
  * @summary Serve an object entity from PRIVATE_OBJECT_DIR
  */
 export const GetStorageObjectParams = zod.object({

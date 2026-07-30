@@ -8,5 +8,7 @@
 
 export * from './errorEnvelope';
 export * from './healthStatus';
+export * from './uploadConfirmAck';
+export * from './uploadConfirmPayload';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

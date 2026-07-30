@@ -1,11 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import { z } from "zod";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
 import { authenticate } from "../middlewares/authenticate";
 
 const router: IRouter = Router();
@@ -77,11 +77,49 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
   }
 });
 
+const ConfirmUploadBody = z.object({
+  objectPath: z.string().startsWith("/objects/"),
+});
+
+/**
+ * POST /storage/uploads/confirm
+ *
+ * Called by the client after a direct-to-GCS upload completes.
+ * Sets the ACL policy on the uploaded object so it can be served.
+ * Requires authentication.
+ */
+router.post("/storage/uploads/confirm", authenticate, async (req: Request, res: Response) => {
+  const parsed = ConfirmUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "objectPath is required and must start with /objects/" });
+    return;
+  }
+
+  try {
+    const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(
+      parsed.data.objectPath,
+      { owner: req.user!.sub, visibility: "private" },
+    );
+    res.json({ objectPath: normalizedPath });
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Object not found — upload may not have completed" });
+      return;
+    }
+    req.log.error({ err: error }, "Error confirming upload ACL");
+    res.status(500).json({ error: "Failed to confirm upload" });
+  }
+});
+
 /**
  * GET /storage/objects/*
  *
  * Serve object entities from PRIVATE_OBJECT_DIR.
- * Requires authentication — only logged-in users can access stored objects.
+ * Requires authentication — any logged-in user may read stored objects.
+ * Place images are community content; owner-only ACL would block legitimate
+ * access (e.g. admins reviewing submissions, users viewing approved places).
+ * Fine-grained ACL enforcement can be added once ObjectAccessGroupType is
+ * populated with group types (e.g. ADMIN, SUBSCRIBER).
  */
 router.get("/storage/objects/*path", authenticate, async (req: Request, res: Response) => {
   try {
@@ -89,16 +127,6 @@ router.get("/storage/objects/*path", authenticate, async (req: Request, res: Res
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-
-    const canAccess = await objectStorageService.canAccessObjectEntity({
-      userId: req.user!.sub,
-      objectFile,
-      requestedPermission: ObjectPermission.READ,
-    });
-    if (!canAccess) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
 
     const response = await objectStorageService.downloadObject(objectFile);
 

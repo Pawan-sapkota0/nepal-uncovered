@@ -22,6 +22,8 @@ import type {
 import type {
   ErrorEnvelope,
   HealthStatus,
+  UploadConfirmAck,
+  UploadConfirmPayload,
   UploadUrlRequest,
   UploadUrlResponse
 } from './api.schemas';
@@ -266,6 +268,81 @@ export function useGetPublicObject<TData = Awaited<ReturnType<typeof getPublicOb
 
 
 
+
+export const getConfirmUploadUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/confirm`
+}
+
+/**
+ * Call after a presigned PUT upload completes. Sets the ACL policy on the
+uploaded object (owner = current user, visibility = private) so it can
+be served via GET /storage/objects/*.
+
+ * @summary Confirm a direct-to-GCS upload and set its ACL
+ */
+export const confirmUpload = async (uploadConfirmPayload: UploadConfirmPayload, options?: RequestInit): Promise<UploadConfirmAck> => {
+
+  return customFetch<UploadConfirmAck>(getConfirmUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      uploadConfirmPayload,)
+  }
+);}
+
+
+
+
+export const getConfirmUploadMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmUpload>>, TError,{data: BodyType<UploadConfirmPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmUpload>>, TError,{data: BodyType<UploadConfirmPayload>}, TContext> => {
+
+const mutationKey = ['confirmUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmUpload>>, {data: BodyType<UploadConfirmPayload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmUploadMutationResult = NonNullable<Awaited<ReturnType<typeof confirmUpload>>>
+    export type ConfirmUploadMutationBody = BodyType<UploadConfirmPayload>
+    export type ConfirmUploadMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Confirm a direct-to-GCS upload and set its ACL
+ */
+export const useConfirmUpload = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmUpload>>, TError,{data: BodyType<UploadConfirmPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmUpload>>,
+        TError,
+        {data: BodyType<UploadConfirmPayload>},
+        TContext
+      > => {
+      return useMutation(getConfirmUploadMutationOptions(options));
+    }
 
 export const getGetStorageObjectUrl = (objectPath: string,) => {
 
