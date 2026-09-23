@@ -4,8 +4,10 @@ import { db, placesTable, submissionsTable, usersTable, profilesTable, userRoles
 import { authenticate } from "../middlewares/authenticate";
 import { requireRole, requireMinRole } from "../middlewares/requireRole";
 import { sendApprovedEmail, sendRejectedEmail, sendChangesRequestedEmail } from "../lib/email";
+import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 // All admin routes require authentication + at least moderator
 router.use(authenticate, requireMinRole("moderator"));
@@ -180,16 +182,41 @@ import { z as _z } from "zod/v4";
 
 router.get("/categories", async (_req, res): Promise<void> => {
   const rows = await db
-    .select({ slug: categoriesTable.slug, name: categoriesTable.name, description: categoriesTable.description, icon: categoriesTable.icon, sortOrder: categoriesTable.sortOrder })
+    .select({
+      slug: categoriesTable.slug,
+      name: categoriesTable.name,
+      description: categoriesTable.description,
+      icon: categoriesTable.icon,
+      coverImage: categoriesTable.coverImage,
+      sortOrder: categoriesTable.sortOrder,
+    })
     .from(categoriesTable)
     .orderBy(categoriesTable.sortOrder);
   res.json(rows);
 });
 
 router.post("/categories", requireRole("admin"), async (req, res): Promise<void> => {
-  const schema = _z.object({ slug: _z.string().min(1), name: _z.string().min(1), description: _z.string().optional(), icon: _z.string().optional(), sortOrder: _z.number().int().default(0) });
+  const schema = _z.object({
+    slug: _z.string().min(1),
+    name: _z.string().min(1),
+    description: _z.string().optional(),
+    icon: _z.string().optional(),
+    coverImage: _z.string().min(1).startsWith("/objects/"),
+    sortOrder: _z.number().int().default(0),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: { code: "validation" } }); return; }
+
+  try {
+    await objectStorageService.getObjectEntityFile(parsed.data.coverImage);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(400).json({ error: { code: "invalid_cover_image", message: "Cover image was not found in storage" } });
+      return;
+    }
+    throw error;
+  }
+
   const [cat] = await db.insert(categoriesTable).values(parsed.data).onConflictDoNothing().returning();
   if (!cat) { res.status(409).json({ error: { code: "conflict", message: "Slug already exists" } }); return; }
   res.status(201).json(cat);
@@ -197,9 +224,38 @@ router.post("/categories", requireRole("admin"), async (req, res): Promise<void>
 
 router.patch("/categories/:slug", requireRole("admin"), async (req, res): Promise<void> => {
   const slug = String(req.params.slug);
-  const schema = _z.object({ name: _z.string().min(1).optional(), description: _z.string().optional(), icon: _z.string().optional(), sortOrder: _z.number().int().optional() });
+  const schema = _z.object({
+    name: _z.string().min(1).optional(),
+    description: _z.string().optional(),
+    icon: _z.string().optional(),
+    coverImage: _z.string().min(1).startsWith("/objects/").optional(),
+    sortOrder: _z.number().int().optional(),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: { code: "validation" } }); return; }
+
+  const [existing] = await db
+    .select({ coverImage: categoriesTable.coverImage })
+    .from(categoriesTable)
+    .where(eq(categoriesTable.slug, slug));
+  if (!existing) { res.status(404).json({ error: { code: "not_found" } }); return; }
+  if (!parsed.data.coverImage && !existing.coverImage) {
+    res.status(400).json({ error: { code: "cover_image_required", message: "Upload a cover image before saving this category" } });
+    return;
+  }
+
+  if (parsed.data.coverImage) {
+    try {
+      await objectStorageService.getObjectEntityFile(parsed.data.coverImage);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(400).json({ error: { code: "invalid_cover_image", message: "Cover image was not found in storage" } });
+        return;
+      }
+      throw error;
+    }
+  }
+
   const [cat] = await db.update(categoriesTable).set(parsed.data).where(eq(categoriesTable.slug, slug)).returning();
   if (!cat) { res.status(404).json({ error: { code: "not_found" } }); return; }
   res.json(cat);
@@ -255,6 +311,19 @@ router.patch("/reports/:id/resolve", async (req, res): Promise<void> => {
 });
 
 // ── Admin Places management ───────────────────────────────────────────────────
+
+const adminPlaceImageFieldsSchema = _z.object({
+  coverImage: _z.string().min(1).nullable().optional(),
+  images: _z.array(_z.string().min(1)).max(10).optional(),
+});
+
+async function verifyStoredPlaceImages(paths: Array<string | null | undefined>) {
+  await Promise.all(
+    paths
+      .filter((path): path is string => !!path && path.startsWith("/objects/"))
+      .map((path) => objectStorageService.getObjectEntityFile(path)),
+  );
+}
 
 // GET /admin/places — list all places (all statuses) with optional filter
 router.get("/places", async (req, res): Promise<void> => {
@@ -313,6 +382,28 @@ router.patch("/places/:id", async (req, res): Promise<void> => {
     bestSeason, difficulty, costEstimate, permits, durationDays,
     nearbyHospital, emergency, localSupport, status,
   } = req.body;
+  const imageFields = adminPlaceImageFieldsSchema.safeParse({ coverImage, images });
+  if (!imageFields.success) {
+    res.status(400).json({
+      error: { code: "validation_error", message: "Images must be valid stored image paths" },
+    });
+    return;
+  }
+
+  try {
+    await verifyStoredPlaceImages([
+      imageFields.data.coverImage,
+      ...(imageFields.data.images ?? []),
+    ]);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(400).json({
+        error: { code: "invalid_image", message: "One or more uploaded images were not found in storage" },
+      });
+      return;
+    }
+    throw error;
+  }
 
   const updateData: Record<string, any> = {};
   if (title != null) updateData.title = title;
@@ -324,8 +415,8 @@ router.patch("/places/:id", async (req, res): Promise<void> => {
   if (province != null) updateData.province = province;
   if (lat != null) updateData.lat = String(lat);
   if (lng != null) updateData.lng = String(lng);
-  if (coverImage != null) updateData.coverImage = coverImage;
-  if (images != null) updateData.images = images;
+  if (imageFields.data.coverImage !== undefined) updateData.coverImage = imageFields.data.coverImage;
+  if (imageFields.data.images !== undefined) updateData.images = imageFields.data.images;
   if (hidden != null) updateData.hidden = hidden;
   if (featured != null) updateData.featured = featured;
   if (bestSeason != null) updateData.bestSeason = bestSeason;

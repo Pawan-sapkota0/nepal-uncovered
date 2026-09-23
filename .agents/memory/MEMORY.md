@@ -1,0 +1,2 @@
+- [External image backfills](external-image-migrations.md) — Verify remote sources before storing them; legacy image URLs can fail and must not be persisted unverified.
+- [Public place images](public-place-images.md) — Keep upload and confirmation authenticated, but serve stored place objects publicly so logged-out cards/details can render them.

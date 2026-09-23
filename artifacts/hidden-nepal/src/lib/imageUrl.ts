@@ -5,3 +5,7 @@ export function getImageUrl(path: string | undefined | null): string {
   if (path.startsWith("http")) return path;
   return `${API_BASE}/storage${path}`;
 }
+
+export function getCategoryCoverUrl(slug: string): string {
+  return `${API_BASE}/categories/${encodeURIComponent(slug)}/cover`;
+}

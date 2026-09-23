@@ -89,7 +89,7 @@ export const auth = {
 // ──────────────── CATEGORIES ────────────────
 export interface ApiCategory {
   slug: string; name: string; description?: string;
-  icon?: string; sortOrder: number; count: number;
+  icon?: string; coverImage?: string | null; sortOrder: number; count: number;
 }
 
 export const categories = {
@@ -103,7 +103,7 @@ export interface ApiPlace {
   history?: string; categorySlug?: string;
   district: string; province: string;
   lat: string; lng: string;
-  coverImage?: string; images: string[];
+  coverImage?: string | null; images: string[];
   hidden: boolean; featured: boolean; views: number;
   bestSeason?: string; difficulty?: string;
   costEstimate?: string; permits?: string; durationDays?: number;
@@ -369,10 +369,10 @@ export interface AdminPlaceRow extends ApiPlace {
 
 export const admin = {
   stats: () => request<AdminStats>("/admin/stats"),
-  categories: () => request<{ slug: string; name: string; description?: string; icon?: string; sortOrder: number }[]>("/admin/categories"),
-  createCategory: (data: { slug: string; name: string; description?: string; icon?: string; sortOrder?: number }) =>
+  categories: () => request<{ slug: string; name: string; description?: string; icon?: string; coverImage?: string | null; sortOrder: number }[]>("/admin/categories"),
+  createCategory: (data: { slug: string; name: string; description?: string; icon?: string; coverImage: string; sortOrder?: number }) =>
     request<any>("/admin/categories", { method: "POST", body: JSON.stringify(data) }),
-  updateCategory: (slug: string, data: { name?: string; description?: string; icon?: string; sortOrder?: number }) =>
+  updateCategory: (slug: string, data: { name?: string; description?: string; icon?: string; coverImage?: string; sortOrder?: number }) =>
     request<any>(`/admin/categories/${slug}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCategory: (slug: string) => request<void>(`/admin/categories/${slug}`, { method: "DELETE" }),
   activity: (params?: { limit?: number; offset?: number; action?: string }) => {

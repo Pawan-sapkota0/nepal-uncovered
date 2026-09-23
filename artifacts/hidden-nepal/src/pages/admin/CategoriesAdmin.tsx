@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { admin } from "@/lib/api";
+import { getCategoryCoverUrl } from "@/lib/imageUrl";
+import { useSingleImageUpload } from "@/hooks/useImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,16 +15,18 @@ import { Plus, Pencil, Trash2, Loader2, Tag, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Category {
-  slug: string; name: string; description?: string; icon?: string; sortOrder: number;
+  slug: string; name: string; description?: string; icon?: string;
+  coverImage?: string | null; sortOrder: number;
 }
 
-const empty = { slug: "", name: "", description: "", icon: "", sortOrder: 0 };
+const empty = { slug: "", name: "", description: "", icon: "", coverImage: "", sortOrder: 0 };
 
 const CategoriesAdmin = () => {
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [form, setForm] = useState(empty);
+  const coverUpload = useSingleImageUpload();
 
   const { data: cats = [], isLoading } = useQuery<Category[]>({
     queryKey: ["admin-categories"],
@@ -30,14 +34,14 @@ const CategoriesAdmin = () => {
   });
 
   const createMut = useMutation({
-    mutationFn: () => admin.createCategory({ slug: form.slug, name: form.name, description: form.description, icon: form.icon, sortOrder: Number(form.sortOrder) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setCreating(false); setForm(empty); toast.success("Category created"); },
+    mutationFn: () => admin.createCategory({ slug: form.slug, name: form.name, description: form.description, icon: form.icon, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setCreating(false); setForm(empty); coverUpload.clear(); toast.success("Category created"); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create"),
   });
 
   const updateMut = useMutation({
-    mutationFn: () => admin.updateCategory(editing!.slug, { name: form.name, description: form.description, icon: form.icon, sortOrder: Number(form.sortOrder) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setEditing(null); toast.success("Category updated"); },
+    mutationFn: () => admin.updateCategory(editing!.slug, { name: form.name, description: form.description, icon: form.icon, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setEditing(null); coverUpload.clear(); toast.success("Category updated"); },
     onError: () => toast.error("Failed to update"),
   });
 
@@ -48,8 +52,22 @@ const CategoriesAdmin = () => {
   });
 
   const openEdit = (cat: Category) => {
+    coverUpload.clear();
     setEditing(cat);
-    setForm({ slug: cat.slug, name: cat.name, description: cat.description ?? "", icon: cat.icon ?? "", sortOrder: cat.sortOrder });
+    setForm({ slug: cat.slug, name: cat.name, description: cat.description ?? "", icon: cat.icon ?? "", coverImage: cat.coverImage ?? "", sortOrder: cat.sortOrder });
+  };
+
+  const closeDialog = () => {
+    setCreating(false);
+    setEditing(null);
+    coverUpload.clear();
+  };
+
+  const selectCoverImage = async (file: File) => {
+    const result = await coverUpload.upload(file);
+    if (result) {
+      setForm((current) => ({ ...current, coverImage: result.objectPath }));
+    }
   };
 
   return (
@@ -84,6 +102,15 @@ const CategoriesAdmin = () => {
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <span className="text-xl">{cat.icon ?? "📌"}</span>
+                      {cat.coverImage ? (
+                        <img
+                          src={getCategoryCoverUrl(cat.slug)}
+                          alt=""
+                          className="h-10 w-14 rounded-md object-cover border border-border"
+                        />
+                      ) : (
+                        <div className="h-10 w-14 rounded-md bg-muted border border-dashed border-border" />
+                      )}
                       <div>
                         <div className="font-medium">{cat.name}</div>
                         <div className="text-xs text-muted-foreground font-mono">{cat.slug}</div>
@@ -128,7 +155,7 @@ const CategoriesAdmin = () => {
       )}
 
       {/* Create / Edit dialog */}
-      <Dialog open={creating || !!editing} onOpenChange={(o) => { if (!o) { setCreating(false); setEditing(null); } }}>
+      <Dialog open={creating || !!editing} onOpenChange={(o) => { if (!o) closeDialog(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">{editing ? "Edit category" : "New category"}</DialogTitle>
@@ -155,6 +182,41 @@ const CategoriesAdmin = () => {
               <Textarea rows={2} placeholder="Short description of this category" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
             <div>
+              <label className="text-sm font-medium mb-1.5 block">
+                Cover image <span className="text-destructive">*</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <label className="relative flex h-24 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted/40 hover:bg-muted">
+                  {coverUpload.image?.previewUrl || (form.coverImage && editing) ? (
+                    <img
+                      src={coverUpload.image?.previewUrl ?? getCategoryCoverUrl(editing!.slug)}
+                      alt="Category cover preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="px-3 text-center text-xs text-muted-foreground">Choose image</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void selectCoverImage(file);
+                      e.currentTarget.value = "";
+                    }}
+                    disabled={coverUpload.state === "uploading"}
+                  />
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  <p>JPG, PNG, or WebP</p>
+                  <p>Maximum 10 MB</p>
+                  {coverUpload.state === "uploading" && <p className="text-primary">Uploading…</p>}
+                  {coverUpload.error && <p className="text-destructive">{coverUpload.error}</p>}
+                </div>
+              </div>
+            </div>
+            <div>
               <label className="text-sm font-medium mb-1.5 block">Sort order <span className="text-muted-foreground text-xs">(lower = first)</span></label>
               <Input type="number" value={form.sortOrder} onChange={(e) => setForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))} className="w-28" />
             </div>
@@ -162,7 +224,7 @@ const CategoriesAdmin = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null); }}>Cancel</Button>
             <Button
-              disabled={!form.name.trim() || (!editing && !form.slug.trim()) || createMut.isPending || updateMut.isPending}
+              disabled={!form.name.trim() || (!editing && !form.slug.trim()) || !form.coverImage || coverUpload.state === "uploading" || createMut.isPending || updateMut.isPending}
               onClick={() => editing ? updateMut.mutate() : createMut.mutate()}
             >
               {(createMut.isPending || updateMut.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Save changes" : "Create"}

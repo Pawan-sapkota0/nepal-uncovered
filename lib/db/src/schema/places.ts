@@ -9,6 +9,7 @@ export const categoriesTable = pgTable("categories", {
   name: text("name").notNull(),
   description: text("description"),
   icon: text("icon"),
+  coverImage: text("cover_image"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

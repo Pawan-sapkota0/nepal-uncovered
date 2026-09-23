@@ -12,7 +12,13 @@ import { Switch } from "@/components/ui/switch";
 import { PROVINCES } from "@/lib/constants";
 import { getImageUrl } from "@/lib/imageUrl";
 import type { Difficulty, Province } from "@/types";
-import { useSingleImageUpload, useMultiImageUpload } from "@/hooks/useImageUpload";
+import {
+  useSingleImageUpload,
+  useMultiImageUpload,
+  PLACE_IMAGE_ACCEPT,
+  PLACE_IMAGE_UPLOAD_RULES,
+  validateImageFile,
+} from "@/hooks/useImageUpload";
 import { ArrowLeft, ImageIcon, Send, X, Loader2, Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -20,15 +26,6 @@ import { cn } from "@/lib/utils";
 
 const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-
-const MAX_FILE_MB = 8;
-const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
-
-const validateFile = (file: File): string | null => {
-  if (!file.type.startsWith("image/")) return "File must be an image";
-  if (file.size > MAX_FILE_MB * 1024 * 1024) return `Image must be under ${MAX_FILE_MB}MB`;
-  return null;
-};
 
 const AddPlace = () => {
   const navigate = useNavigate();
@@ -64,13 +61,13 @@ const AddPlace = () => {
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const cover = useSingleImageUpload();
-  const gallery = useMultiImageUpload(10);
+  const cover = useSingleImageUpload(PLACE_IMAGE_UPLOAD_RULES);
+  const gallery = useMultiImageUpload(10, PLACE_IMAGE_UPLOAD_RULES);
 
   const onCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const err = validateFile(file);
+    const err = validateImageFile(file, PLACE_IMAGE_UPLOAD_RULES);
     if (err) { toast.error(err); return; }
     await cover.upload(file);
     e.target.value = "";
@@ -80,7 +77,7 @@ const AddPlace = () => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     for (const f of Array.from(files)) {
-      const err = validateFile(f);
+      const err = validateImageFile(f, PLACE_IMAGE_UPLOAD_RULES);
       if (err) { toast.error(`${f.name}: ${err}`); return; }
     }
     await gallery.upload(files);
@@ -243,11 +240,11 @@ const AddPlace = () => {
                     </div>
                     <div>
                       <div className="text-sm font-medium">Click to upload cover image</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to {MAX_FILE_MB}MB</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP, AVIF — up to 8MB</div>
                     </div>
                   </>
                 )}
-                <input type="file" accept={ACCEPT} onChange={onCoverFile} className="hidden" disabled={cover.state === "uploading"} />
+                <input type="file" accept={PLACE_IMAGE_ACCEPT} onChange={onCoverFile} className="hidden" disabled={cover.state === "uploading"} />
               </label>
             )}
 
@@ -284,7 +281,7 @@ const AddPlace = () => {
                     ) : (
                       <span className="text-2xl text-muted-foreground">+</span>
                     )}
-                    <input ref={galleryInputRef} type="file" accept={ACCEPT} multiple onChange={onGalleryFiles} className="hidden" disabled={gallery.uploading} />
+                    <input ref={galleryInputRef} type="file" accept={PLACE_IMAGE_ACCEPT} multiple onChange={onGalleryFiles} className="hidden" disabled={gallery.uploading} />
                   </label>
                 )}
               </div>
@@ -307,11 +304,11 @@ const AddPlace = () => {
                     </div>
                     <div>
                       <div className="text-sm font-medium">Click to upload gallery images</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">Select up to 10 images · JPG, PNG, WebP — up to {MAX_FILE_MB}MB each</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">Select up to 10 images · JPG, PNG, WebP, AVIF — up to 8MB each</div>
                     </div>
                   </>
                 )}
-                <input type="file" accept={ACCEPT} multiple onChange={onGalleryFiles} className="hidden" disabled={gallery.uploading} />
+                <input type="file" accept={PLACE_IMAGE_ACCEPT} multiple onChange={onGalleryFiles} className="hidden" disabled={gallery.uploading} />
               </label>
             )}
 

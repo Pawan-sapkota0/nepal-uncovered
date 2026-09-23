@@ -115,13 +115,11 @@ router.post("/storage/uploads/confirm", authenticate, async (req: Request, res: 
  * GET /storage/objects/*
  *
  * Serve object entities from PRIVATE_OBJECT_DIR.
- * Requires authentication — any logged-in user may read stored objects.
- * Place images are community content; owner-only ACL would block legitimate
- * access (e.g. admins reviewing submissions, users viewing approved places).
- * Fine-grained ACL enforcement can be added once ObjectAccessGroupType is
- * populated with group types (e.g. ADMIN, SUBSCRIBER).
+ * These paths are unguessable upload object paths referenced by public place
+ * records. Upload URL generation and confirmation remain authenticated; reads
+ * are public so place cards and detail pages can render for logged-out users.
  */
-router.get("/storage/objects/*path", authenticate, async (req: Request, res: Response) => {
+router.get("/storage/objects/*path", async (req: Request, res: Response) => {
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
