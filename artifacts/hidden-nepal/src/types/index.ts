@@ -43,6 +43,8 @@ export interface Place {
   hidden: boolean; // hidden gem flag
   featured?: boolean;
   views: number;
+  ratingAverage?: number;
+  ratingCount?: number;
   travel: {
     bestSeason: string;
     difficulty: Difficulty;

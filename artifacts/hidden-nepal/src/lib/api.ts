@@ -105,6 +105,7 @@ export interface ApiPlace {
   lat: string; lng: string;
   coverImage?: string | null; images: string[];
   hidden: boolean; featured: boolean; views: number;
+  ratingAverage: string | number; ratingCount: number;
   bestSeason?: string; difficulty?: string;
   costEstimate?: string; permits?: string; durationDays?: number;
   nearbyHospital?: string; emergency?: string; localSupport?: string;
@@ -152,21 +153,50 @@ export const bookmarks = {
 // ──────────────── REVIEWS ────────────────
 export interface ApiReview {
   id: string; placeId: string; userId: string;
-  rating: number; body?: string;
+  rating: number; title?: string | null; body?: string | null;
+  visitDate?: string | null; photos: string[];
+  status: "published" | "hidden" | "flagged";
+  helpfulCount: number; isVerifiedVisit: boolean;
   createdAt: string; updatedAt: string;
-  reviewer?: { name?: string; avatarUrl?: string };
+  reviewer?: { name?: string | null; avatarUrl?: string | null };
+  isOwner?: boolean;
+  isHelpful?: boolean;
+  place?: { id: string; slug: string; title: string };
+}
+
+export interface ApiReviewBreakdown { rating: number; count: number }
+export interface ApiReviewList {
+  reviews: ApiReview[];
+  average: string | null;
+  count: number;
+  breakdown: ApiReviewBreakdown[];
+  nextOffset: number | null;
+  limit: number;
+  offset: number;
 }
 
 export const reviews = {
-  list: (slug: string) => request<{ reviews: ApiReview[]; average: string | null; count: number }>(`/places/${slug}/reviews`),
-  create: (data: { placeId: string; rating: number; body?: string }) =>
+  list: (slug: string, params?: { limit?: number; offset?: number; sort?: "newest" | "highest" | "lowest" | "helpful" }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    if (params?.sort) q.set("sort", params.sort);
+    const query = q.toString();
+    return request<ApiReviewList>(`/places/${slug}/reviews${query ? `?${query}` : ""}`);
+  },
+  mine: () => request<ApiReview[]>("/reviews/me"),
+  create: (data: { placeId: string; rating: number; title?: string; body: string; visitDate?: string; photos?: string[] }) =>
     request<ApiReview>("/reviews", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: { rating?: number; title?: string | null; body?: string; visitDate?: string | null; photos?: string[] }) =>
+    request<ApiReview>(`/reviews/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  toggleHelpful: (id: string) =>
+    request<{ helpfulCount: number; isHelpful: boolean }>(`/reviews/${id}/helpful`, { method: "POST" }),
   delete: (id: string) => request<void>(`/reviews/${id}`, { method: "DELETE" }),
 };
 
 // ──────────────── REPORTS ────────────────
 export const reports = {
-  create: (data: { placeId: string; reason: string; details?: string }) =>
+  create: (data: { placeId: string; reviewId?: string; reason: string; details?: string }) =>
     request<void>("/reports", { method: "POST", body: JSON.stringify(data) }),
 };
 
@@ -342,6 +372,7 @@ export const trips = {
 export interface AdminStats {
   totalPlaces: number; pendingSubmissions: number;
   totalUsers: number; approvedPlaces: number; openReports: number;
+  totalReviews: number; averageRating: string | null;
   placesByStatus: { status: string; count: number }[];
   topContributors: { name: string; count: number }[];
 }
@@ -365,6 +396,37 @@ export interface AdminSubmission {
 
 export interface AdminPlaceRow extends ApiPlace {
   submitterName?: string | null;
+}
+
+export interface AdminReview extends ApiReview {
+  place: { id: string; slug: string; title: string };
+  reviewer: { id?: string; name?: string | null; avatarUrl?: string | null };
+}
+
+export interface AdminReviewAnalytics {
+  total: number;
+  average: string | null;
+  breakdown: ApiReviewBreakdown[];
+  statusCounts: { published: number; hidden: number; flagged: number };
+  trend: { month: string; count: number; average: string | null }[];
+}
+
+export interface AdminReviewResult {
+  data: AdminReview[];
+  total: number;
+  limit: number;
+  offset: number;
+  analytics: AdminReviewAnalytics;
+}
+
+export interface AdminReviewReport {
+  report: {
+    id: string; reviewId: string | null; placeId: string; reporterId: string;
+    reason: string; details: string | null; resolved: boolean; createdAt: string;
+  };
+  place: { id: string; slug: string; title: string } | null;
+  review: { id: string; title: string | null; body: string | null; rating: number; status: string } | null;
+  reporter: { name: string | null };
 }
 
 export const admin = {
@@ -408,6 +470,18 @@ export const admin = {
   updatePlace: (id: string, data: Partial<ApiPlace> & { status?: string }) =>
     request<ApiPlace>(`/admin/places/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deletePlace: (id: string) => request<void>(`/admin/places/${id}`, { method: "DELETE" }),
-  reports: () => request<any[]>("/admin/reports"),
+  reports: () => request<AdminReviewReport[]>("/admin/reports"),
   resolveReport: (id: string) => request<void>(`/admin/reports/${id}/resolve`, { method: "PATCH" }),
+  reviews: (params?: { status?: string; query?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.query) qs.set("query", params.query);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    return request<AdminReviewResult>(`/admin/reviews${query ? `?${query}` : ""}`);
+  },
+  updateReviewStatus: (id: string, status: "published" | "hidden" | "flagged") =>
+    request<ApiReview>(`/admin/reviews/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  deleteReview: (id: string) => request<void>(`/admin/reviews/${id}`, { method: "DELETE" }),
 };

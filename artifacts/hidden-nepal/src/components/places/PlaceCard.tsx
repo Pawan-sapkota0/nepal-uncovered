@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MapPin, Eye, Sparkles, Bookmark } from "lucide-react";
+import { MapPin, Eye, Sparkles, Bookmark, Star } from "lucide-react";
 import type { Place } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/store/useApp";
@@ -49,6 +49,11 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
           <p className="mt-2 text-sm text-primary-foreground/85 line-clamp-2 max-w-md">
             <Highlight text={place.shortDescription} query={highlight} />
           </p>
+          <div className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary-foreground/90">
+            <Star className="h-4 w-4 fill-saffron text-saffron" />
+            <span className="font-semibold">{place.ratingCount ? (place.ratingAverage ?? 0).toFixed(1) : "New"}</span>
+            {!!place.ratingCount && <span className="text-primary-foreground/70">({place.ratingCount})</span>}
+          </div>
         </div>
       </Link>
     );
@@ -104,6 +109,11 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
         <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
           <Highlight text={place.shortDescription} query={highlight} />
         </p>
+        <div className="mt-3 inline-flex items-center gap-1.5 text-sm">
+          <Star className="h-4 w-4 fill-saffron text-saffron" />
+          <span className="font-semibold">{place.ratingCount ? (place.ratingAverage ?? 0).toFixed(1) : "New"}</span>
+          {!!place.ratingCount && <span className="text-muted-foreground">({place.ratingCount})</span>}
+        </div>
         <div className="mt-4 flex items-center justify-between">
           <Badge variant="secondary" className="capitalize text-xs">{place.category}</Badge>
           <span className="text-sm font-medium text-primary group-hover:translate-x-1 transition-transform">

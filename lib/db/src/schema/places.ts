@@ -32,6 +32,8 @@ export const placesTable = pgTable("places", {
   hidden: boolean("hidden").notNull().default(false),
   featured: boolean("featured").notNull().default(false),
   views: integer("views").notNull().default(0),
+  ratingAverage: numeric("rating_average", { precision: 3, scale: 2 }).notNull().default("0"),
+  ratingCount: integer("rating_count").notNull().default(0),
   bestSeason: text("best_season"),
   difficulty: difficultyEnum("difficulty"),
   costEstimate: text("cost_estimate"),

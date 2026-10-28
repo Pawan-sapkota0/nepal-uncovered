@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PROVINCES, DISTRICTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { MapPin, Eye, Loader2 } from "lucide-react";
+import { MapPin, Eye, Loader2, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 type Sort = "popular" | "newest" | "name";
@@ -383,6 +383,11 @@ const Explore = () => {
                     <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
                       <Highlight text={p.shortDescription} query={debouncedQuery} />
                     </p>
+                    <div className="mt-2 inline-flex items-center gap-1.5 text-sm">
+                      <Star className="h-3.5 w-3.5 fill-saffron text-saffron" />
+                      <span className="font-semibold">{p.ratingCount ? (p.ratingAverage ?? 0).toFixed(1) : "New"}</span>
+                      {!!p.ratingCount && <span className="text-muted-foreground">({p.ratingCount})</span>}
+                    </div>
                     <div className="mt-3 flex items-center gap-2">
                       <Badge variant="secondary" className="capitalize text-xs">{p.category}</Badge>
                       <Badge variant="outline" className="text-xs">{p.travel.difficulty}</Badge>

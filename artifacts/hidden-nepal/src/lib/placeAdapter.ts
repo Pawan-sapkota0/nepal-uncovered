@@ -22,6 +22,8 @@ export function adaptPlace(p: ApiPlace): Place {
     hidden: p.hidden,
     featured: p.featured,
     views: p.views,
+    ratingAverage: Number(p.ratingAverage ?? 0),
+    ratingCount: p.ratingCount ?? 0,
     travel: {
       bestSeason: p.bestSeason ?? "Year-round",
       difficulty: (p.difficulty ?? "Moderate") as any,

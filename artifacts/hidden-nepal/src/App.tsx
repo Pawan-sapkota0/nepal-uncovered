@@ -24,6 +24,7 @@ import PlacesAdmin from "./pages/admin/PlacesAdmin";
 import CategoriesAdmin from "./pages/admin/CategoriesAdmin";
 import UsersAdmin from "./pages/admin/UsersAdmin";
 import ActivityLog from "./pages/admin/ActivityLog";
+import ReviewsAdmin from "./pages/admin/ReviewsAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -69,6 +70,7 @@ const App = () => (
             <Route path="categories" element={<CategoriesAdmin />} />
             <Route path="users" element={<UsersAdmin />} />
             <Route path="activity" element={<ActivityLog />} />
+            <Route path="reviews" element={<ReviewsAdmin />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

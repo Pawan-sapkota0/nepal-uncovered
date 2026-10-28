@@ -1,10 +1,10 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, check, numeric, date } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, check, numeric, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { placesTable } from "./places";
-import { reportReasonEnum, tripTypeEnum, tripStatusEnum, activityCategoryEnum } from "./enums";
+import { reportReasonEnum, reviewStatusEnum, tripTypeEnum, tripStatusEnum, activityCategoryEnum } from "./enums";
 
 export const bookmarksTable = pgTable("bookmarks", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -18,22 +18,41 @@ export const reviewsTable = pgTable("reviews", {
   placeId: uuid("place_id").notNull().references(() => placesTable.id, { onDelete: "cascade" }),
   userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   rating: integer("rating").notNull(),
+  title: text("title"),
   body: text("body"),
+  visitDate: date("visit_date", { mode: "string" }),
+  photos: text("photos").array().notNull().default([]),
+  status: reviewStatusEnum("status").notNull().default("published"),
+  helpfulCount: integer("helpful_count").notNull().default(0),
+  isVerifiedVisit: boolean("is_verified_visit").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
   check("rating_range", sql`${t.rating} between 1 and 5`),
+  uniqueIndex("reviews_user_place_unique").on(t.userId, t.placeId),
+]);
+
+export const reviewVotesTable = pgTable("review_votes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  reviewId: uuid("review_id").notNull().references(() => reviewsTable.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("review_votes_user_review_unique").on(t.userId, t.reviewId),
 ]);
 
 export const reportsTable = pgTable("reports", {
   id: uuid("id").primaryKey().defaultRandom(),
   placeId: uuid("place_id").notNull().references(() => placesTable.id, { onDelete: "cascade" }),
+  reviewId: uuid("review_id").references(() => reviewsTable.id, { onDelete: "cascade" }),
   reporterId: uuid("reporter_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   reason: reportReasonEnum("reason").notNull(),
   details: text("details"),
   resolved: boolean("resolved").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("reports_user_review_unique").on(t.reporterId, t.reviewId),
+]);
 
 export const placeViewsTable = pgTable("place_views", {
   id: uuid("id").primaryKey().defaultRandom(),

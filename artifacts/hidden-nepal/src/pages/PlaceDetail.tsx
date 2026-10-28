@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import {
   ArrowLeft, Bookmark, MapPin, CalendarDays, DollarSign, Mountain, FileCheck,
-  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2, Route,
+  Hospital, PhoneCall, LifeBuoy, Sparkles, Eye, Share2, Navigation, Loader2, Route, Star,
 } from "lucide-react";
 import { AddToTripModal } from "@/components/trips/AddToTripModal";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { places as placesApi } from "@/lib/api";
 import { adaptPlace, adaptPlaces } from "@/lib/placeAdapter";
 import { getImageUrl } from "@/lib/imageUrl";
+import ReviewsSection from "@/components/places/ReviewsSection";
 
 const PlaceDetail = () => {
   const { slug } = useParams();
@@ -136,6 +137,10 @@ const PlaceDetail = () => {
             <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4" /> {place.district}, {place.province}</span>
             <span className="inline-flex items-center gap-2"><Eye className="h-4 w-4" /> {place.views.toLocaleString()} views</span>
             <span className="inline-flex items-center gap-2"><Mountain className="h-4 w-4" /> {place.travel.difficulty}</span>
+            <span className="inline-flex items-center gap-2">
+              <Star className="h-4 w-4 fill-saffron text-saffron" />
+              {place.ratingCount ? `${(place.ratingAverage ?? 0).toFixed(1)} (${place.ratingCount})` : "No reviews yet"}
+            </span>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -238,6 +243,8 @@ const PlaceDetail = () => {
               <SafetyCard icon={<LifeBuoy className="h-4 w-4" />} title="Local support" body={place.safety.localSupport} />
             </div>
           </section>
+
+          <ReviewsSection slug={place.slug} placeId={place.id} />
 
           {/* Related */}
           {related.length > 0 && (

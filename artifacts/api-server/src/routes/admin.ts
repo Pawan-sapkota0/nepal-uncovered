@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, desc, count, sql, ilike } from "drizzle-orm";
-import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, categoriesTable, auditLogTable } from "@workspace/db";
+import { eq, and, or, desc, count, avg, sql, ilike } from "drizzle-orm";
+import { db, placesTable, submissionsTable, usersTable, profilesTable, userRolesTable, reportsTable, reviewsTable, categoriesTable, auditLogTable } from "@workspace/db";
 import { authenticate } from "../middlewares/authenticate";
 import { requireRole, requireMinRole } from "../middlewares/requireRole";
 import { sendApprovedEmail, sendRejectedEmail, sendChangesRequestedEmail } from "../lib/email";
@@ -300,7 +300,24 @@ router.get("/activity", async (req, res): Promise<void> => {
 
 // Reports management
 router.get("/reports", async (req, res): Promise<void> => {
-  const rows = await db.select().from(reportsTable).orderBy(desc(reportsTable.createdAt));
+  const rows = await db
+    .select({
+      report: reportsTable,
+      place: { id: placesTable.id, slug: placesTable.slug, title: placesTable.title },
+      review: {
+        id: reviewsTable.id,
+        title: reviewsTable.title,
+        body: reviewsTable.body,
+        rating: reviewsTable.rating,
+        status: reviewsTable.status,
+      },
+      reporter: { name: profilesTable.name },
+    })
+    .from(reportsTable)
+    .leftJoin(placesTable, eq(reportsTable.placeId, placesTable.id))
+    .leftJoin(reviewsTable, eq(reportsTable.reviewId, reviewsTable.id))
+    .leftJoin(profilesTable, eq(reportsTable.reporterId, profilesTable.userId))
+    .orderBy(desc(reportsTable.createdAt));
   res.json(rows);
 });
 
@@ -308,6 +325,125 @@ router.patch("/reports/:id/resolve", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.update(reportsTable).set({ resolved: true }).where(eq(reportsTable.id, id));
   res.json({ message: "Resolved" });
+});
+
+// ── Review moderation and analytics ──────────────────────────────────────────
+router.get("/reviews", async (req, res): Promise<void> => {
+  const { status, query } = req.query as { status?: string; query?: string };
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const conditions: any[] = [];
+  if (status && status !== "all") conditions.push(eq(reviewsTable.status, status as any));
+  if (query) {
+    conditions.push(or(
+      ilike(reviewsTable.title, `%${query}%`),
+      ilike(reviewsTable.body, `%${query}%`),
+      ilike(placesTable.title, `%${query}%`),
+      ilike(profilesTable.name, `%${query}%`),
+    )!);
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
+  const [rows, [{ total }], [summary], breakdown, trend, statusCounts] = await Promise.all([
+    db.select({
+      review: reviewsTable,
+      place: { id: placesTable.id, slug: placesTable.slug, title: placesTable.title },
+      reviewer: { id: profilesTable.userId, name: profilesTable.name, avatarUrl: profilesTable.avatarUrl },
+    })
+      .from(reviewsTable)
+      .innerJoin(placesTable, eq(reviewsTable.placeId, placesTable.id))
+      .leftJoin(profilesTable, eq(reviewsTable.userId, profilesTable.userId))
+      .where(where)
+      .orderBy(desc(reviewsTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: count(reviewsTable.id) }).from(reviewsTable).where(where),
+    db.select({ average: avg(reviewsTable.rating), total: count(reviewsTable.id) }).from(reviewsTable),
+    db.select({ rating: reviewsTable.rating, count: count(reviewsTable.id) }).from(reviewsTable).groupBy(reviewsTable.rating),
+    db.select({
+      month: sql<string>`to_char(date_trunc('month', ${reviewsTable.createdAt}), 'YYYY-MM')`,
+      count: count(reviewsTable.id),
+      average: avg(reviewsTable.rating),
+    }).from(reviewsTable)
+      .groupBy(sql`date_trunc('month', ${reviewsTable.createdAt})`)
+      .orderBy(desc(sql`date_trunc('month', ${reviewsTable.createdAt})`))
+      .limit(12),
+    db.select({ status: reviewsTable.status, count: count(reviewsTable.id) })
+      .from(reviewsTable)
+      .groupBy(reviewsTable.status),
+  ]);
+
+  res.json({
+    data: rows.map((row) => ({ ...row.review, place: row.place, reviewer: row.reviewer })),
+    total: Number(total ?? 0),
+    limit,
+    offset,
+    analytics: {
+      total: Number(summary?.total ?? 0),
+      average: summary?.average == null ? null : Number(summary.average).toFixed(1),
+      breakdown: [1, 2, 3, 4, 5].map((rating) => ({
+        rating,
+        count: Number(breakdown.find((row) => row.rating === rating)?.count ?? 0),
+      })),
+      statusCounts: {
+        published: Number(statusCounts.find((row) => row.status === "published")?.count ?? 0),
+        hidden: Number(statusCounts.find((row) => row.status === "hidden")?.count ?? 0),
+        flagged: Number(statusCounts.find((row) => row.status === "flagged")?.count ?? 0),
+      },
+      trend: trend.map((row) => ({
+        month: row.month,
+        count: Number(row.count),
+        average: row.average == null ? null : Number(row.average).toFixed(1),
+      })).reverse(),
+    },
+  });
+});
+
+router.patch("/reviews/:id/status", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const status = req.body?.status;
+  if (!["published", "hidden", "flagged"].includes(status)) {
+    res.status(400).json({ error: { code: "validation_error", message: "Invalid review status" } });
+    return;
+  }
+  const [review] = await db.select({ id: reviewsTable.id, placeId: reviewsTable.placeId })
+    .from(reviewsTable).where(eq(reviewsTable.id, id));
+  if (!review) {
+    res.status(404).json({ error: { code: "not_found", message: "Review not found" } });
+    return;
+  }
+  const [updated] = await db.transaction(async (tx) => {
+    const rows = await tx.update(reviewsTable).set({ status }).where(eq(reviewsTable.id, id)).returning();
+    const [stats] = await tx.select({ average: avg(reviewsTable.rating), total: count(reviewsTable.id) })
+      .from(reviewsTable)
+      .where(and(eq(reviewsTable.placeId, review.placeId), eq(reviewsTable.status, "published")));
+    await tx.update(placesTable).set({
+      ratingAverage: stats?.average == null ? "0" : Number(stats.average).toFixed(2),
+      ratingCount: Number(stats?.total ?? 0),
+    }).where(eq(placesTable.id, review.placeId));
+    return rows;
+  });
+  res.json(updated);
+});
+
+router.delete("/reviews/:id", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [review] = await db.select({ id: reviewsTable.id, placeId: reviewsTable.placeId })
+    .from(reviewsTable).where(eq(reviewsTable.id, id));
+  if (!review) {
+    res.status(404).json({ error: { code: "not_found", message: "Review not found" } });
+    return;
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(reviewsTable).where(eq(reviewsTable.id, id));
+    const [stats] = await tx.select({ average: avg(reviewsTable.rating), total: count(reviewsTable.id) })
+      .from(reviewsTable)
+      .where(and(eq(reviewsTable.placeId, review.placeId), eq(reviewsTable.status, "published")));
+    await tx.update(placesTable).set({
+      ratingAverage: stats?.average == null ? "0" : Number(stats.average).toFixed(2),
+      ratingCount: Number(stats?.total ?? 0),
+    }).where(eq(placesTable.id, review.placeId));
+  });
+  res.sendStatus(204);
 });
 
 // ── Admin Places management ───────────────────────────────────────────────────
@@ -454,6 +590,7 @@ router.get("/stats", async (req, res): Promise<void> => {
   const [totalUsers] = await db.select({ count: count() }).from(usersTable);
   const [approvedPlaces] = await db.select({ count: count() }).from(placesTable).where(eq(placesTable.status, "approved"));
   const [openReports] = await db.select({ count: count() }).from(reportsTable).where(eq(reportsTable.resolved, false));
+  const [reviewStats] = await db.select({ count: count(reviewsTable.id), average: avg(reviewsTable.rating) }).from(reviewsTable);
 
   const byStatus = await db
     .select({ status: placesTable.status, count: count() })
@@ -472,6 +609,8 @@ router.get("/stats", async (req, res): Promise<void> => {
     totalUsers: totalUsers.count,
     approvedPlaces: approvedPlaces.count,
     openReports: openReports.count,
+    totalReviews: Number(reviewStats.count ?? 0),
+    averageRating: reviewStats.average == null ? null : Number(reviewStats.average).toFixed(1),
     placesByStatus: byStatus,
     topContributors,
   });

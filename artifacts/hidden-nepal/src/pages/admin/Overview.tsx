@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { admin } from "@/lib/api";
-import { Users, MapPin, Inbox, Eye, TrendingUp, Loader2 } from "lucide-react";
+import { Users, MapPin, Inbox, Eye, TrendingUp, Loader2, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -35,6 +35,7 @@ const Overview = () => {
         <Stat icon={<Inbox className="h-4 w-4" />} label="Pending review" value={stats?.pendingSubmissions ?? 0} highlight={(stats?.pendingSubmissions ?? 0) > 0} />
         <Stat icon={<Users className="h-4 w-4" />} label="Users" value={stats?.totalUsers ?? 0} />
         <Stat icon={<Eye className="h-4 w-4" />} label="Open reports" value={stats?.openReports ?? 0} />
+        <Stat icon={<Star className="h-4 w-4" />} label="Reviews" value={stats?.totalReviews ?? 0} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 mt-8">
