@@ -12,9 +12,10 @@ import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { places as placesApi } from "@/lib/api";
+import { places as placesApi, categories as categoriesApi } from "@/lib/api";
 import { adaptPlace, adaptPlaces } from "@/lib/placeAdapter";
 import { getImageUrl } from "@/lib/imageUrl";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import ReviewsSection from "@/components/places/ReviewsSection";
 
 const PlaceDetail = () => {
@@ -33,6 +34,11 @@ const PlaceDetail = () => {
     queryKey: ["places", undefined, undefined, undefined, undefined, false],
     queryFn: () => placesApi.list({ limit: 100 }),
     staleTime: 60_000,
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
   });
 
   const [locating, setLocating] = useState(false);
@@ -58,6 +64,7 @@ const PlaceDetail = () => {
   }
 
   const place = adaptPlace(apiPlace);
+  const category = categories.find((item) => item.slug === place.category);
   const allPlaces = adaptPlaces(relatedResult?.data ?? []);
   const related = allPlaces
     .filter((p) => p.id !== place.id && (p.category === place.category || p.province === place.province))
@@ -125,7 +132,8 @@ const PlaceDetail = () => {
               </Badge>
             )}
             <Badge variant="secondary" className="capitalize bg-white/15 text-primary-foreground border-white/20 backdrop-blur">
-              {place.category}
+              <CategoryIcon icon={category?.icon} className="mr-1 text-sm leading-none" />
+              {category?.name ?? place.category}
             </Badge>
           </div>
 

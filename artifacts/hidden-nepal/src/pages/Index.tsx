@@ -4,6 +4,7 @@ import { ArrowRight, Compass, Search, Sparkles, ShieldCheck, Users, Map } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { PlaceCard } from "@/components/places/PlaceCard";
 import { useQuery } from "@tanstack/react-query";
 import { places as placesApi, categories as categoriesApi } from "@/lib/api";
@@ -150,16 +151,7 @@ const Landing = () => {
               className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 hover-lift animate-fade-up"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <div className="text-3xl mb-3">
-                {c.slug === "lakes" && "🏞️"}
-                {c.slug === "mountains" && "🏔️"}
-                {c.slug === "villages" && "🏘️"}
-                {c.slug === "heritage" && "🛕"}
-                {c.slug === "wildlife" && "🦏"}
-                {c.slug === "trekking" && "🥾"}
-                {c.slug === "spiritual" && "🪷"}
-                {c.slug === "valleys" && "🌄"}
-              </div>
+              <CategoryIcon icon={c.icon} className="mb-3 text-3xl leading-none" />
               <div className="font-display text-lg font-semibold">{c.name}</div>
               <div className="text-sm text-muted-foreground mt-1 line-clamp-2">{c.description}</div>
             </Link>

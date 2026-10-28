@@ -14,7 +14,7 @@ router.get("/categories", async (req, res): Promise<void> => {
       name: categoriesTable.name,
       description: categoriesTable.description,
       icon: categoriesTable.icon,
-       coverImage: categoriesTable.coverImage,
+      coverImage: categoriesTable.coverImage,
       sortOrder: categoriesTable.sortOrder,
       count: sql<number>`count(${placesTable.id})::int`,
     })

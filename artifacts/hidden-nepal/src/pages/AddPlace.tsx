@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { PROVINCES } from "@/lib/constants";
 import { getImageUrl } from "@/lib/imageUrl";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import type { Difficulty, Province } from "@/types";
 import {
   useSingleImageUpload,
@@ -167,7 +168,12 @@ const AddPlace = () => {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {apiCategories.map((c) => (
-                      <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+                      <SelectItem key={c.slug} value={c.slug}>
+                        <span className="inline-flex items-center gap-2">
+                          <CategoryIcon icon={c.icon} className="text-base leading-none" />
+                          {c.name}
+                        </span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

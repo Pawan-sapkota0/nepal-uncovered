@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { categories as categoriesApi } from "@/lib/api";
 import { getCategoryCoverUrl } from "@/lib/imageUrl";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { ArrowRight } from "lucide-react";
 
 const Categories = () => {
@@ -40,7 +41,10 @@ const Categories = () => {
               </div>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-display text-2xl font-semibold">{c.name}</h3>
+                  <h3 className="flex items-center gap-2 font-display text-2xl font-semibold">
+                    <CategoryIcon icon={c.icon} className="text-2xl leading-none" />
+                    {c.name}
+                  </h3>
                   <span className="text-xs uppercase tracking-wider text-muted-foreground">{c.count} place{c.count === 1 ? "" : "s"}</span>
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">{c.description}</p>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { admin, categories as categoriesApi, type ApiPlace } from "@/lib/api";
 import { getImageUrl } from "@/lib/imageUrl";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import {
   PLACE_IMAGE_ACCEPT,
   PLACE_IMAGE_UPLOAD_RULES,
@@ -246,7 +247,12 @@ export const EditPlaceModal = ({ placeId, open, onClose }: Props) => {
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     {cats.map((c) => (
-                      <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+                      <SelectItem key={c.slug} value={c.slug}>
+                        <span className="inline-flex items-center gap-2">
+                          <CategoryIcon icon={c.icon} className="text-base leading-none" />
+                          {c.name}
+                        </span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

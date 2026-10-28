@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { MapPin, Eye, Sparkles, Bookmark, Star } from "lucide-react";
 import type { Place } from "@/types";
+import { categories as categoriesApi } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { useApp } from "@/store/useApp";
 import { cn } from "@/lib/utils";
 import { Highlight } from "@/components/Highlight";
@@ -17,6 +20,12 @@ interface PlaceCardProps {
 export function PlaceCard({ place, index = 0, variant = "default", highlight }: PlaceCardProps) {
   const { bookmarks, toggleBookmark } = useApp();
   const saved = bookmarks.includes(place.id);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list(),
+    staleTime: 300_000,
+  });
+  const category = categories.find((item) => item.slug === place.category);
 
   if (variant === "feature") {
     return (
@@ -115,7 +124,10 @@ export function PlaceCard({ place, index = 0, variant = "default", highlight }: 
           {!!place.ratingCount && <span className="text-muted-foreground">({place.ratingCount})</span>}
         </div>
         <div className="mt-4 flex items-center justify-between">
-          <Badge variant="secondary" className="capitalize text-xs">{place.category}</Badge>
+          <Badge variant="secondary" className="capitalize text-xs">
+            <CategoryIcon icon={category?.icon} className="mr-1 text-sm leading-none" />
+            {category?.name ?? place.category}
+          </Badge>
           <span className="text-sm font-medium text-primary group-hover:translate-x-1 transition-transform">
             View details →
           </span>

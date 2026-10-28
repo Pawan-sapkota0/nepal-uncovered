@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PlaceCard } from "@/components/places/PlaceCard";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { Highlight } from "@/components/Highlight";
 import { useApp } from "@/store/useApp";
 import { places as placesApi, categories as categoriesApi } from "@/lib/api";
@@ -70,6 +71,10 @@ const Explore = () => {
     queryFn: () => categoriesApi.list(),
     staleTime: 300_000,
   });
+  const categoryBySlug = useMemo(
+    () => new Map(apiCategories.map((item) => [item.slug, item])),
+    [apiCategories],
+  );
 
   const filtered = useMemo(() => {
     const apiPlaces = adaptPlaces(apiResult?.data ?? []);
@@ -199,7 +204,12 @@ const Explore = () => {
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
                 {apiCategories.map((c) => (
-                  <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+                  <SelectItem key={c.slug} value={c.slug}>
+                    <span className="inline-flex items-center gap-2">
+                      <CategoryIcon icon={c.icon} className="text-base leading-none" />
+                      {c.name}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -389,7 +399,10 @@ const Explore = () => {
                       {!!p.ratingCount && <span className="text-muted-foreground">({p.ratingCount})</span>}
                     </div>
                     <div className="mt-3 flex items-center gap-2">
-                      <Badge variant="secondary" className="capitalize text-xs">{p.category}</Badge>
+                      <Badge variant="secondary" className="capitalize text-xs">
+                        <CategoryIcon icon={categoryBySlug.get(p.category)?.icon} className="mr-1 text-sm leading-none" />
+                        {categoryBySlug.get(p.category)?.name ?? p.category}
+                      </Badge>
                       <Badge variant="outline" className="text-xs">{p.travel.difficulty}</Badge>
                     </div>
                   </div>

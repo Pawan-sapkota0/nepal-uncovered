@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { admin } from "@/lib/api";
 import { getCategoryCoverUrl } from "@/lib/imageUrl";
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { useSingleImageUpload } from "@/hooks/useImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import { Plus, Pencil, Trash2, Loader2, Tag, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Category {
-  slug: string; name: string; description?: string; icon?: string;
+  slug: string; name: string; description?: string; icon?: string | null;
   coverImage?: string | null; sortOrder: number;
 }
 
@@ -34,13 +35,13 @@ const CategoriesAdmin = () => {
   });
 
   const createMut = useMutation({
-    mutationFn: () => admin.createCategory({ slug: form.slug, name: form.name, description: form.description, icon: form.icon, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
+    mutationFn: () => admin.createCategory({ slug: form.slug, name: form.name, description: form.description, icon: form.icon.trim() || null, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setCreating(false); setForm(empty); coverUpload.clear(); toast.success("Category created"); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create"),
   });
 
   const updateMut = useMutation({
-    mutationFn: () => admin.updateCategory(editing!.slug, { name: form.name, description: form.description, icon: form.icon, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
+    mutationFn: () => admin.updateCategory(editing!.slug, { name: form.name, description: form.description, icon: form.icon.trim() || null, coverImage: form.coverImage, sortOrder: Number(form.sortOrder) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-categories"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setEditing(null); coverUpload.clear(); toast.success("Category updated"); },
     onError: () => toast.error("Failed to update"),
   });
@@ -101,7 +102,7 @@ const CategoriesAdmin = () => {
                 <tr key={cat.slug} className="hover:bg-muted/30 transition-colors">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-xl">{cat.icon ?? "📌"}</span>
+                      <CategoryIcon icon={cat.icon} className="text-xl leading-none" />
                       {cat.coverImage ? (
                         <img
                           src={getCategoryCoverUrl(cat.slug)}
@@ -173,8 +174,8 @@ const CategoriesAdmin = () => {
                 <Input placeholder="Waterfalls" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Icon</label>
-                <Input placeholder="💧" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className="text-center text-lg" />
+                <label className="text-sm font-medium mb-1.5 block">Icon (emoji)</label>
+                <Input maxLength={24} placeholder="💧" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className="text-center text-lg" />
               </div>
             </div>
             <div>

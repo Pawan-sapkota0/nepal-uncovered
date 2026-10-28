@@ -200,7 +200,7 @@ router.post("/categories", requireRole("admin"), async (req, res): Promise<void>
     slug: _z.string().min(1),
     name: _z.string().min(1),
     description: _z.string().optional(),
-    icon: _z.string().optional(),
+    icon: _z.string().trim().max(64).nullable().optional(),
     coverImage: _z.string().min(1).startsWith("/objects/"),
     sortOrder: _z.number().int().default(0),
   });
@@ -227,7 +227,7 @@ router.patch("/categories/:slug", requireRole("admin"), async (req, res): Promis
   const schema = _z.object({
     name: _z.string().min(1).optional(),
     description: _z.string().optional(),
-    icon: _z.string().optional(),
+    icon: _z.string().trim().max(64).nullable().optional(),
     coverImage: _z.string().min(1).startsWith("/objects/").optional(),
     sortOrder: _z.number().int().optional(),
   });
